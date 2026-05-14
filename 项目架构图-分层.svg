@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1200" viewBox="0 0 1900 1200">
+  <defs>
+    <style>
+      .title { font: 700 44px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .layer { stroke: #111827; stroke-width: 2.2; rx: 10; ry: 10; }
+      .box { fill: #f8fafc; stroke: #111827; stroke-width: 2.2; rx: 10; ry: 10; }
+      .label { font: 30px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .text { font: 26px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .small { font: 22px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .line { stroke: #111827; stroke-width: 2.3; fill: none; marker-end: url(#arrow); }
+      .dash { stroke: #6b7280; stroke-width: 2; fill: none; stroke-dasharray: 8 7; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#111827"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1900" height="1200" fill="#ffffff"/>
+  <text x="950" y="70" text-anchor="middle" class="title">项目架构图</text>
+
+  <!-- 层标签 -->
+  <rect class="layer" x="1160" y="100" width="210" height="70" fill="#8ecae6"/>
+  <text class="label" x="1265" y="145" text-anchor="middle">表示层</text>
+
+  <rect class="layer" x="620" y="230" width="230" height="70" fill="#8fe388"/>
+  <text class="label" x="735" y="275" text-anchor="middle">业务逻辑层</text>
+
+  <rect class="layer" x="120" y="500" width="230" height="70" fill="#f5f1c7"/>
+  <text class="label" x="235" y="545" text-anchor="middle">数据访问层</text>
+
+  <!-- 表示层 -->
+  <rect class="box" x="1060" y="250" width="410" height="120"/>
+  <text class="text" x="1265" y="320" text-anchor="middle">聊天前端页面（HTML/JS）</text>
+
+  <!-- 业务服务 -->
+  <rect class="box" x="420" y="500" width="290" height="130"/>
+  <text class="text" x="565" y="565" text-anchor="middle">消息服务</text>
+  <text class="small" x="565" y="605" text-anchor="middle">群聊 / 单聊 / 撤回</text>
+
+  <rect class="box" x="760" y="500" width="320" height="130"/>
+  <text class="text" x="920" y="565" text-anchor="middle">聊天记录服务</text>
+  <text class="small" x="920" y="605" text-anchor="middle">归档 / 关键词检索</text>
+
+  <rect class="box" x="1130" y="500" width="290" height="130"/>
+  <text class="text" x="1275" y="565" text-anchor="middle">上传服务</text>
+  <text class="small" x="1275" y="605" text-anchor="middle">图片上传 / 访问地址</text>
+
+  <rect class="box" x="1470" y="500" width="300" height="130"/>
+  <text class="text" x="1620" y="565" text-anchor="middle">敏感词处理服务</text>
+  <text class="small" x="1620" y="605" text-anchor="middle">检测 / 替换</text>
+
+  <!-- 数据访问组件 -->
+  <rect class="box" x="560" y="760" width="310" height="110"/>
+  <text class="text" x="715" y="825" text-anchor="middle">文件读写组件</text>
+
+  <rect class="box" x="970" y="760" width="310" height="110"/>
+  <text class="text" x="1125" y="825" text-anchor="middle">消息推送组件</text>
+
+  <!-- 数据对象 -->
+  <rect class="box" x="140" y="980" width="360" height="120"/>
+  <text class="text" x="320" y="1045" text-anchor="middle">聊天记录文件（Markdown）</text>
+
+  <rect class="box" x="560" y="980" width="300" height="120"/>
+  <text class="text" x="710" y="1045" text-anchor="middle">上传文件目录</text>
+
+  <rect class="box" x="920" y="980" width="410" height="120"/>
+  <text class="text" x="1125" y="1045" text-anchor="middle">敏感词词库（sensitive-word.txt）</text>
+
+  <rect class="box" x="1390" y="980" width="340" height="120"/>
+  <text class="text" x="1560" y="1045" text-anchor="middle">在线会话与用户缓存</text>
+
+  <!-- 连线 -->
+  <line class="line" x1="1265" y1="170" x2="1265" y2="250"/>
+  <text class="small" x="1290" y="215">包含</text>
+
+  <path class="line" d="M1060 310 C890 320, 700 380, 565 500"/>
+  <text class="small" x="820" y="400">调用</text>
+
+  <path class="line" d="M1150 370 C1080 420, 1000 455, 920 500"/>
+  <text class="small" x="1040" y="430">调用</text>
+
+  <path class="line" d="M1265 370 C1270 420, 1270 455, 1275 500"/>
+  <text class="small" x="1295" y="445">调用</text>
+
+  <path class="line" d="M1390 370 C1510 400, 1570 445, 1620 500"/>
+  <text class="small" x="1500" y="430">调用</text>
+
+  <line class="line" x1="565" y1="630" x2="715" y2="760"/>
+  <text class="small" x="620" y="710">调用</text>
+
+  <line class="line" x1="920" y1="630" x2="715" y2="760"/>
+  <text class="small" x="790" y="710">调用</text>
+
+  <line class="line" x1="1275" y1="630" x2="715" y2="760"/>
+  <text class="small" x="1010" y="710">调用</text>
+
+  <line class="line" x1="565" y1="630" x2="1125" y2="760"/>
+  <text class="small" x="890" y="670">消息推送</text>
+
+  <line class="line" x1="1620" y1="630" x2="1125" y2="760"/>
+  <text class="small" x="1380" y="700">过滤结果回传</text>
+
+  <line class="line" x1="715" y1="870" x2="320" y2="980"/>
+  <text class="small" x="500" y="935">文件读写</text>
+
+  <line class="line" x1="715" y1="870" x2="710" y2="980"/>
+  <text class="small" x="730" y="940">文件读写</text>
+
+  <line class="line" x1="715" y1="870" x2="1125" y2="980"/>
+  <text class="small" x="900" y="935">词库读取</text>
+
+  <line class="line" x1="1125" y1="870" x2="1560" y2="980"/>
+  <text class="small" x="1330" y="935">状态维护</text>
+
+  <!-- 辅助虚线 -->
+  <ellipse class="dash" cx="1180" cy="520" rx="520" ry="180"/>
+  <ellipse class="dash" cx="900" cy="820" rx="520" ry="120"/>
+</svg>

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1900" viewBox="0 0 1400 1900">
+  <defs>
+    <style>
+      .title { font: 700 44px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .txt { font: 26px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .small { font: 22px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #374151; }
+      .box { fill: #ffffff; stroke: #111827; stroke-width: 2.5; }
+      .decision { fill: #ffffff; stroke: #111827; stroke-width: 2.5; }
+      .line { stroke: #111827; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .yesno { font: 20px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#111827"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="1900" fill="#ffffff"/>
+  <text x="700" y="70" text-anchor="middle" class="title">群聊业务流程图（用户视角）</text>
+
+  <rect class="box" x="220" y="110" width="960" height="80"/>
+  <text x="700" y="160" text-anchor="middle" class="txt">1. 用户进入聊天页面并加入群聊大厅</text>
+
+  <rect class="box" x="220" y="230" width="960" height="80"/>
+  <text x="700" y="280" text-anchor="middle" class="txt">2. 输入群聊消息并点击发送</text>
+
+  <rect class="box" x="220" y="350" width="960" height="80"/>
+  <text x="700" y="400" text-anchor="middle" class="txt">3. 系统提交群聊消息</text>
+
+  <polygon class="decision" points="700,460 940,520 700,580 460,520"/>
+  <text x="700" y="530" text-anchor="middle" class="txt">4. 消息内容是否有效？</text>
+
+  <rect class="box" x="110" y="670" width="470" height="110"/>
+  <text x="345" y="720" text-anchor="middle" class="txt">无效：提示发送失败</text>
+  <text x="345" y="760" text-anchor="middle" class="small">用户修改后重新发送</text>
+
+  <rect class="box" x="820" y="670" width="470" height="110"/>
+  <text x="1055" y="720" text-anchor="middle" class="txt">有效：消息发送成功</text>
+  <text x="1055" y="760" text-anchor="middle" class="small">在线成员可接收</text>
+
+  <rect class="box" x="820" y="830" width="470" height="80"/>
+  <text x="1055" y="880" text-anchor="middle" class="txt">5. 群成员收到消息提醒</text>
+
+  <polygon class="decision" points="1055,990 1285,1050 1055,1110 825,1050"/>
+  <text x="1055" y="1060" text-anchor="middle" class="txt">6. 成员当前在群聊窗口吗？</text>
+
+  <rect class="box" x="110" y="1200" width="520" height="110"/>
+  <text x="370" y="1250" text-anchor="middle" class="txt">是：消息立即显示在群聊窗口</text>
+  <text x="370" y="1290" text-anchor="middle" class="small">可实时继续讨论</text>
+
+  <rect class="box" x="770" y="1200" width="520" height="110"/>
+  <text x="1030" y="1250" text-anchor="middle" class="txt">否：消息进入未读状态</text>
+  <text x="1030" y="1290" text-anchor="middle" class="small">切回群聊后统一查看</text>
+
+  <rect class="box" x="420" y="1390" width="560" height="100"/>
+  <text x="700" y="1440" text-anchor="middle" class="txt">7. 群聊持续进行，历史消息可回看</text>
+  <text x="700" y="1475" text-anchor="middle" class="small">流程结束</text>
+
+  <line class="line" x1="700" y1="190" x2="700" y2="230"/>
+  <line class="line" x1="700" y1="310" x2="700" y2="350"/>
+  <line class="line" x1="700" y1="430" x2="700" y2="460"/>
+
+  <path class="line" d="M700 580 L345 670"/>
+  <text x="510" y="635" text-anchor="middle" class="yesno">否</text>
+
+  <path class="line" d="M700 580 L1055 670"/>
+  <text x="900" y="635" text-anchor="middle" class="yesno">是</text>
+
+  <line class="line" x1="1055" y1="780" x2="1055" y2="830"/>
+  <line class="line" x1="1055" y1="910" x2="1055" y2="990"/>
+
+  <path class="line" d="M1020 1110 L370 1200"/>
+  <text x="720" y="1155" text-anchor="middle" class="yesno">是</text>
+
+  <path class="line" d="M1090 1110 L1030 1200"/>
+  <text x="1120" y="1155" text-anchor="middle" class="yesno">否</text>
+
+  <line class="line" x1="370" y1="1310" x2="620" y2="1390"/>
+  <line class="line" x1="1030" y1="1310" x2="780" y2="1390"/>
+</svg>

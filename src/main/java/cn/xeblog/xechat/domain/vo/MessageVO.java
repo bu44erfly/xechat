@@ -62,6 +62,10 @@ public class MessageVO implements Serializable {
     @Setter
     private String[] receiver;
 
+    @Getter
+    @Setter
+    private String channelId;
+
     public MessageVO(User user, String message, String image, MessageTypeEnum type, String[] receiver) {
         this.user = user;
         this.message = message;

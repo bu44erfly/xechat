@@ -1,5 +1,6 @@
 package cn.xeblog.xechat.interceptor;
 
+import cn.xeblog.xechat.cache.UserBlockCache;
 import cn.xeblog.xechat.constant.UserStatusConstant;
 import cn.xeblog.xechat.domain.mo.User;
 import cn.xeblog.xechat.utils.SensitiveWordUtils;
@@ -12,8 +13,6 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
-
-import java.util.UUID;
 
 /**
  * webcocket拦截器
@@ -38,9 +37,23 @@ public class WebSocketInterceptor implements ChannelInterceptor {
         StompHeaderAccessor stompHeaderAccessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
         if (StompCommand.CONNECT.equals(stompHeaderAccessor.getCommand())) {
+            String username = SensitiveWordUtils.loveChina(stompHeaderAccessor.getFirstNativeHeader("username"));
+            if (UserBlockCache.isDisabled(username)) {
+                return null;
+            }
             User user = new User();
-            user.setUserId(UUIDUtils.create());
-            user.setUsername(SensitiveWordUtils.loveChina(stompHeaderAccessor.getFirstNativeHeader("username")));
+            String userId = stompHeaderAccessor.getFirstNativeHeader("userId");
+            if (userId != null) {
+                userId = userId.trim();
+                if ("undefined".equalsIgnoreCase(userId) || "null".equalsIgnoreCase(userId)) {
+                    userId = null;
+                }
+            }
+            if (userId == null || userId.isEmpty()) {
+                userId = UUIDUtils.create();
+            }
+            user.setUserId(userId);
+            user.setUsername(username);
             user.setAvatar(stompHeaderAccessor.getFirstNativeHeader("avatar"));
             user.setAddress(stompHeaderAccessor.getFirstNativeHeader("address"));
             user.setStatus(UserStatusConstant.ONLINE);

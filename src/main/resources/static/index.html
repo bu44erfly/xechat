@@ -22,9 +22,12 @@
                 </div>
             </div>
             <div class="login-name"></div>
+            <input type="text" id="account" placeholder="账号" class="form-control">
+            <input type="password" id="password" placeholder="密码" class="form-control">
             <input type="text" id="username" placeholder="请在此处输入您的昵称！" class="form-control">
             <button type="button" class="btn btn-primary" id="joinChat" data-loading-text="连接中...">登入&nbsp;<i
                     class="glyphicon glyphicon-log-in"></i></button>
+            &nbsp;<button type="button" class="btn btn-default" id="register" data-loading-text="注册中...">注册</button>
             &nbsp;<button type="button" class="btn btn-primary" id="logout" style="display: none">注销&nbsp;
             <i class="glyphicon glyphicon-log-out"></i></button>
         </form>
@@ -32,15 +35,16 @@
 </div>
 <div data-role="page" id="showChat" style="display: none">
     <div class="header linear-g fixed_">
-        <div class="dropdown user-list">
-            <i class="glyphicon glyphicon-list dropdown-toggle" id="userList" data-toggle="dropdown"></i>
-            <ul class="dropdown-menu" role="menu" aria-labelledby="userList" id="onlineUserList">
-            </ul>
-        </div>
         <a href="#panel-left" data-iconpos="notext"
            class="col-xs-2 text-right"> </a> <a class="text-center col-xs-8"
-                                                target="_blank">聊天室（<font color="orange" id="online_num"><img
+                                                target="_blank">群聊与私聊（在线 <font color="orange" id="online_num"><img
             src="./images/loader.gif" width="15" height="15"></font>）</a>
+        <div class="record-search-entry">
+            <button type="button" class="btn btn-default btn-xs" onclick="openRecordSearchModal()">聊天记录</button>
+        </div>
+        <div class="channel-entry">
+            <button type="button" class="btn btn-default btn-xs" onclick="openChannelModal()">频道</button>
+        </div>
         <div class="dropdown settings">
             <i class="glyphicon glyphicon-cog dropdown-toggle" id="settings" data-toggle="dropdown"></i>
             <ul class="dropdown-menu pull-right" role="menu" aria-labelledby="settings" id="settings-menu">
@@ -48,6 +52,10 @@
                         class="glyphicon glyphicon-bell"></i><span>新消息通知</span></li>
                 <li><input type="checkbox" checked id="checkSound"/>&nbsp;<i
                         class="glyphicon glyphicon-volume-up"></i><span>消息提示音</span></li>
+                <li><a href="javascript:void(0)" onclick="openAdminModal()"><i
+                        class="glyphicon glyphicon-user"></i><span>用户管理</span></a></li>
+                <li><a href="javascript:void(0)" onclick="openAddFriendModal()"><i
+                        class="glyphicon glyphicon-plus"></i><span>添加好友</span></a></li>
                 <li class="divider"></li>
                 <li style="float: right;margin-right: 10px">
                     <button type="button" class="btn btn-primary btn-xs" onclick="exit()">退出 <i
@@ -57,27 +65,156 @@
         </div>
     </div>
     <div class="header"></div>
-    <div data-role="content" class="container content" role="main">
-        <div>
+    <div class="container content chat-layout" role="main">
+        <div class="chat-sidebar">
+            <div class="sidebar-title">我的频道</div>
+            <ul id="channelList" class="channel-list"></ul>
+            <div class="sidebar-title">好友</div>
+            <ul id="friendList" class="friend-list"></ul>
+            <div class="sidebar-title">在线用户</div>
+            <ul id="onlineUserList" class="online-user-list"></ul>
+        </div>
+        <div class="chat-main">
+            <div class="chat-session-title" id="chatTargetTitle">当前会话：频道 lobby</div>
             <ul class="content-reply-box mg10" id="show_content">
             </ul>
-        </div>
-    </div>
-    <div class="send_div">
-        <div class="toUserList">
-            <ul>
-            </ul>
-        </div>
-        <div class="input-group div_left">
-            <textarea rows="20" maxlength="200" placeholder="请在此处输入要发送的信息！" class="form-control"
-                      id="content" onkeyup="changeBtn()"></textarea>
-            <span id="picture_btn" onclick="selectFile()" class="input-group-addon linear-g right_btn glyphicon
+            <div class="send_div">
+                <div class="input-group div_left">
+                    <textarea rows="20" maxlength="200" placeholder="输入频道消息，或先选择左侧用户私聊" class="form-control"
+                              id="content" onkeyup="changeBtn()"></textarea>
+                    <span id="picture_btn" onclick="selectFile()" class="input-group-addon linear-g right_btn glyphicon
              glyphicon-picture"></span>
-            <span id="send_btn" onclick="sendToChatRoom()" class="input-group-addon linear-g right_btn glyphicon
+                    <span id="send_btn" onclick="sendToChatRoom()" class="input-group-addon linear-g right_btn glyphicon
              glyphicon-send" style="display: none;"></span>
+                </div>
+            </div>
         </div>
     </div>
     <input type="file" style="display: none" id="file" onchange="sendImage()"/>
+</div>
+<div class="modal fade" id="recordSearchModal" tabindex="-1" role="dialog" aria-labelledby="recordSearchModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="recordSearchModalLabel">聊天记录查询</h4>
+            </div>
+            <div class="modal-body">
+                <div class="input-group record-search-group">
+                    <input class="form-control" id="recordSearchKeyword" type="text" maxlength="50"
+                           placeholder="输入关键词查询聊天记录"/>
+                    <span class="input-group-btn">
+                        <button class="btn btn-primary" type="button" onclick="searchRecordFromChat()">查询</button>
+                    </span>
+                </div>
+                <div id="recordSearchResultWrap" class="record-search-result-wrap" style="display:none;">
+                    <div class="record-search-panel">
+                        <p>命中列表</p>
+                        <ol id="recordSearchList"></ol>
+                    </div>
+                    <div class="record-content-panel">
+                        <p>记录详情</p>
+                        <div id="recordSearchContent" class="markdown-body"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="adminModal" tabindex="-1" role="dialog" aria-labelledby="adminModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="adminModalLabel">用户管理</h4>
+            </div>
+            <div class="modal-body">
+                <div class="admin-login-row">
+                    <div class="form-group">
+                        <label>用户名</label>
+                        <input class="form-control" id="adminUsername" type="text" maxlength="32" placeholder="admin"/>
+                    </div>
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input class="form-control" id="adminPassword" type="password" maxlength="64"
+                               placeholder="请输入密码"/>
+                    </div>
+                    <button class="btn btn-primary" type="button" onclick="adminLogin()">登录</button>
+                    <button class="btn btn-default" type="button" id="adminLogoutBtn" onclick="adminLogout()"
+                            style="display:none;">退出登录
+                    </button>
+                    <span class="text-muted" id="adminLoginStatus"></span>
+                </div>
+                <hr/>
+                <div id="adminPanelView" style="display:none;">
+                    <div class="input-group admin-user-search">
+                        <input class="form-control" id="adminUserKeyword" type="text" maxlength="50"
+                               placeholder="按昵称过滤（仅显示在线用户）"/>
+                        <span class="input-group-btn">
+                            <button class="btn btn-default" type="button" onclick="adminLoadUsers()">刷新</button>
+                        </span>
+                    </div>
+                    <div class="admin-table-wrap">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                            <tr>
+                                <th style="width:80px;">头像</th>
+                                <th style="width:180px;">昵称</th>
+                                <th>地区</th>
+                                <th style="width:90px;">状态</th>
+                                <th style="width:100px;">账号</th>
+                                <th style="width:260px;">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody id="adminUserTbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="channelModal" tabindex="-1" role="dialog" aria-labelledby="channelModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="channelModalLabel">频道</h4>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>频道ID</label>
+                    <input class="form-control" id="channelIdInput" type="text" maxlength="32"
+                           placeholder="仅支持字母/数字/_/-，例如 lobby 或 dev_01"/>
+                </div>
+                <button class="btn btn-primary" type="button" onclick="joinChannelFromInput()">加入频道</button>
+                <button class="btn btn-default" type="button" onclick="createChannelFromInput()">创建频道</button>
+                <p class="text-muted" style="margin-top:8px;">当前频道：<span id="currentChannelText">lobby</span></p>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="addFriendModal" tabindex="-1" role="dialog" aria-labelledby="addFriendModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="addFriendModalLabel">添加好友</h4>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>对方昵称</label>
+                    <input class="form-control" id="friendUsernameInput" type="text" maxlength="32"
+                           placeholder="输入对方昵称（注册时的昵称）"/>
+                </div>
+                <button class="btn btn-primary" type="button" onclick="addFriendFromInput()">添加</button>
+            </div>
+        </div>
+    </div>
 </div>
 <div class="text-center" style="line-height: 30px;">
     <a href="https://www.xeblog.cn/" target="_blank">&copy;&nbsp;小毅博客</a>

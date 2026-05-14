@@ -6,7 +6,19 @@ var head_num = 50;
 var uid = null;
 var stompClient = null;
 var onlineUserList;
+var userMap = {};
+var onlineUserMap = {};
+var CHANNEL_PEER_PREFIX = 'channel:';
+var joinedChannelIds = {};
+var channelSubscriptions = {};
+var channelUnreadCount = {};
+var activeChannelId = 'lobby';
+var activeChatUserId = channelPeerId(activeChannelId);
+var chatHistory = {};
+var unreadCount = {};
 var address = '未知地区';
+
+var friendMap = {};
 
 var title = document.title;
 // 是否打开通知
@@ -20,11 +32,29 @@ var visible = true;
 // 是否打开提示音
 var opendSound = true;
 
+var ADMIN_TOKEN_KEY = 'xechat_admin_token';
+
+function channelPeerId(channelId) {
+    return CHANNEL_PEER_PREFIX + ('' + channelId).trim();
+}
+
+function isChannelPeerId(peerId) {
+    return peerId != null && ('' + peerId).indexOf(CHANNEL_PEER_PREFIX) === 0;
+}
+
+function peerIdToChannelId(peerId) {
+    if (!isChannelPeerId(peerId)) {
+        return null;
+    }
+    return ('' + peerId).substring(CHANNEL_PEER_PREFIX.length);
+}
+
 // 页面加载完成后
 window.onload = function () {
     init();
     settings();
-    $('#content').bind('keyup', showToUserList);
+    bindRecordSearchEvents();
+    bindAdminEvents();
     // 页面加载完成监听回车事件
     document.getElementById("content").addEventListener("keydown", function (e) {
         if (e.keyCode != 13) return;
@@ -69,7 +99,6 @@ function connect() {
 function sub() {
     var user = createUser();
     stompClient.connect(user, function (frame) {
-        cacheUser(user);
         uid = frame.headers['user-name'];
 
         if (uid === undefined) {
@@ -77,10 +106,8 @@ function sub() {
             refresh();
         }
 
-        // 聊天室订阅
-        stompClient.subscribe('/topic/chatRoom', function (data) {
-            handleMessage(getData(data.body));
-        });
+        user.userId = uid;
+        cacheUser(user);
 
         // 本地订阅
         stompClient.subscribe('/user/' + uid + '/chat', function (data) {
@@ -89,7 +116,11 @@ function sub() {
 
         // 错误信息订阅
         stompClient.subscribe('/user/' + uid + '/error', function (data) {
-            getData(data.body);
+            var obj = JSON.parse(data.body);
+            codeMapping(obj);
+            if (obj.code === 504 || obj.code === 505) {
+                disconnect();
+            }
         });
 
         // 聊天室动态订阅
@@ -100,6 +131,8 @@ function sub() {
             showUserList(obj.onlineUserList);
         });
 
+        initChannel();
+        loadFriendList();
         setConnected(true);
     }, function (error) {
         alert('请重新连接！');
@@ -181,33 +214,20 @@ function sendToChatRoom() {
         return;
     }
 
-    showToUserList(content);
-
-    var toUser = [uid];
-    var names = content.split('@');
-
-    for (var i = 1; i < names.length; i++) {
-        var index = names[i].indexOf(' ');
-        var userId = getUserIdByName(names[i].substr(0, index != -1 ? index : names[i].length));
-        // userId不能是空的，且toUser数组中不存在该userId
-        if (userId !== undefined && userId !== '' && toUser.indexOf(userId) == -1) {
-            toUser.push(userId);
-        }
+    var data;
+    if (activeChatUserId !== null && !isChannelPeerId(activeChatUserId)) {
+        data = JSON.stringify({
+            "message": content,
+            "receiver": [uid, activeChatUserId]
+        });
+        sendMessage('/chat', {}, data);
+    } else {
+        data = JSON.stringify({
+            "message": content
+        });
+        sendMessage('/channel/' + activeChannelId, {}, data);
     }
 
-    var data = {
-        "message": content
-    };
-
-    var pub = '/chatRoom';
-    if (toUser.length > 1) {
-        pub = '/chat';
-        data.receiver = toUser;
-    }
-
-    data = JSON.stringify(data);
-
-    sendMessage(pub, {}, data);
     $('#content').val('');
     changeBtn();
 }
@@ -269,11 +289,13 @@ function showChatRoom(isShow) {
 function createUser() {
     var username = '匿名';
     var avatar = './images/avatar/1.jpeg';
+    var userId;
     var user = getUser();
 
     if (user !== '') {
         username = user.username;
         avatar = user.avatar;
+        userId = user.userId;
     } else {
         var inputName = $('#username').val();
         var inputAvatar = $('#avatarList').attr('src');
@@ -285,11 +307,15 @@ function createUser() {
         }
     }
 
-    return {
+    var result = {
         'username': username,
         'avatar': avatar,
         'address': address
     };
+    if (userId !== undefined && userId !== null && ('' + userId).trim() !== '') {
+        result.userId = userId;
+    }
+    return result;
 }
 
 /**
@@ -297,35 +323,43 @@ function createUser() {
  * @param data
  */
 function showUserMsg(data) {
+    if (!data.receiver || data.receiver.length === 0) {
+        var channelId = data.channelId ? ('' + data.channelId).trim() : '';
+        if (channelId === '') {
+            return;
+        }
+        var peerId = channelPeerId(channelId);
+        cacheChatMessage(peerId, data);
+        if (!isCurrentChat(peerId)) {
+            increaseChannelUnread(channelId);
+            return;
+        }
+        appendChatHtml(buildMessageHtml(data));
+        return;
+    }
+
     var user = data.user;
     var isMe = user.userId === uid;
-    var style_css = isMe ? 'even' : 'odd';
-    var event = isMe ? 'ondblclick=revokeMessage(this)' : '';
-    var event2 = isMe ? '' : 'ondblclick=showToUser("' + user.username + '")';
+    var peerId = getPeerId(data);
+    if (peerId === null) {
+        return;
+    }
 
-    var showMessage = data.message == null ? '' : htmlEncode(data.message);
-    var showImage = data.image == null ? '' : '<div class="show_image"><img src="' + data.image + '"/></div>';
-    var li = '<li class=' + style_css + ' id=' + data.messageId + ' data-receiver=' + data.receiver + '>';
-    var a = '<a class="user" ' + event2 + '>';
-    var avatar = '<img class="img-responsive avatar_" src=' + user.avatar + '\>';
-    var span = '<span class="user-name">' + user.username + '</span></a>';
-    var div_me = '<div class="reply-content-box"><span class="reply-time"><i class="glyphicon glyphicon-time"></i> '
-        + data.sendTime + '&nbsp;<i class="glyphicon glyphicon-map-marker"></i>' + user.address + '</span>';
-    var div = '<div class="reply-content-box"><span class="reply-time"><i class="glyphicon glyphicon-map-marker"></i>'
-        + user.address + '&nbsp;<i class="glyphicon glyphicon-time"></i> ' + data.sendTime + '</span>';
-    var div2 = '<div class="reply-content pr" ' + event + '><span class="arrow">&nbsp;</span>' + showMessage + showImage + '</div></div></li>';
+    cacheChatMessage(peerId, data);
 
-    var html = li + a + avatar + span + (isMe ? div_me : div) + div2;
-
-    $("#show_content").append(html);
-    jumpToLow();
+    if (!isMe && peerId !== activeChatUserId) {
+        increaseUnread(peerId);
+        return;
+    }
+    appendChatHtml(buildMessageHtml(data));
 }
 
 /**
  * 跳到聊天界面最底下
  */
 function jumpToLow() {
-    $("ul").scrollTop($("ul")[2].scrollHeight);
+    var showContent = $("#show_content");
+    showContent.scrollTop(showContent[0].scrollHeight);
 }
 
 /**
@@ -339,7 +373,13 @@ function handleMessage(data) {
             showUserMsg(data);
             break;
         case 'SYSTEM':
-            showSystemMsg(msg);
+            if (msg && ('' + msg).indexOf('[FRIEND_REFRESH]') === 0) {
+                msg = ('' + msg).replace('[FRIEND_REFRESH]', '');
+                loadFriendList();
+            }
+            if (activeChatUserId !== null) {
+                showSystemMsg(msg);
+            }
             break;
         case 'REVOKE':
             showRevokeMsg(data);
@@ -360,9 +400,17 @@ function handleMessage(data) {
  * @param data
  */
 function showRevokeMsg(data) {
+    var peerId = getPeerId(data);
+    if (peerId !== null && !isCurrentChat(peerId)) {
+        removeMessageFromCache(peerId, data.revokeMessageId);
+        return;
+    }
     var obj = document.getElementById(data.revokeMessageId);
     if (obj) {
         obj.remove();
+        if (peerId !== null) {
+            removeMessageFromCache(peerId, data.revokeMessageId);
+        }
         showSystemMsg(data.user.username + '撤回了一条消息！');
         jumpToLow();
     }
@@ -374,8 +422,7 @@ function showRevokeMsg(data) {
  */
 function showSystemMsg(message) {
     var li = '<li><div class="sys_message">' + message + '</div></li>';
-    $("#show_content").append(li);
-    jumpToLow();
+    appendChatHtml(li);
 }
 
 
@@ -386,16 +433,14 @@ function showSystemMsg(message) {
 function revokeMessage(e) {
     var dom = $(e).parents('li');
     var messageId = dom.attr('id');
-    var receiver = dom.data('receiver');
+    var receiver = null;
 
     if (messageId === '' || messageId === undefined || !confirm('确定撤回这条消息吗？')) {
         return;
     }
 
-    if (receiver === null || receiver === '' || messageId === undefined) {
-        receiver = null;
-    } else {
-        receiver = receiver.split(',');
+    if (activeChatUserId !== null && !isChannelPeerId(activeChatUserId)) {
+        receiver = [uid, activeChatUserId];
     }
 
     var data = JSON.stringify({
@@ -403,7 +448,15 @@ function revokeMessage(e) {
         'receiver': receiver
     });
 
-    sendMessage('/chatRoom/revoke', {}, data);
+    if (receiver) {
+        sendMessage('/chatRoom/revoke', {}, data);
+        return;
+    }
+
+    if (activeChatUserId !== null && isChannelPeerId(activeChatUserId)) {
+        var channelId = peerIdToChannelId(activeChatUserId);
+        sendMessage('/channel/' + channelId + '/revoke', {}, data);
+    }
 }
 
 /**
@@ -477,10 +530,19 @@ function selectFile() {
  * 发送图片到聊天室
  */
 function sendImageToChatRoom(image) {
-    var data = JSON.stringify({
-        "image": image
-    });
-    sendMessage('/chatRoom', {}, data);
+    var data;
+    if (activeChatUserId !== null && !isChannelPeerId(activeChatUserId)) {
+        data = JSON.stringify({
+            "image": image,
+            "receiver": [uid, activeChatUserId]
+        });
+        sendMessage('/chat', {}, data);
+    } else {
+        data = JSON.stringify({
+            "image": image
+        });
+        sendMessage('/channel/' + activeChannelId, {}, data);
+    }
 }
 
 /**
@@ -489,11 +551,74 @@ function sendImageToChatRoom(image) {
  */
 function showUserList(data) {
     onlineUserList = data;
+    var onlineIds = {};
+    onlineUserMap = {};
     $('#onlineUserList').html('');
+
     for (var i = 0; i < data.length; i++) {
         var obj = data[i];
-        $('#onlineUserList').append('<li id=' + obj.userId + '><a href="#"><div><img class="img-responsive avatar_list"' +
-            ' src=' + obj.avatar + '><div class="name_list">' + obj.username + '</div></div></a></li>');
+        onlineUserMap[obj.userId] = obj;
+        userMap[obj.userId] = obj;
+        onlineIds[obj.userId] = true;
+        if (obj.userId === uid) {
+            continue;
+        }
+
+        var active = activeChatUserId === obj.userId ? 'active' : '';
+        var unread = unreadCount[obj.userId] || 0;
+        var unreadHtml = unread > 0 ? '<span class="unread-badge">' + unread + '</span>' : '';
+
+        $('#onlineUserList').append('<li id="user_' + obj.userId + '" class="' + active + '" onclick="selectChatUser(\'' + obj.userId + '\')">' +
+            '<div class="user-row"><img class="img-responsive avatar_list" src="' + obj.avatar + '">' +
+            '<div class="name_list">' + obj.username + '</div>' + unreadHtml + '</div></li>');
+    }
+
+    var offlinePeerIds = {};
+    if (activeChatUserId !== null && !isChannelPeerId(activeChatUserId) && !onlineIds[activeChatUserId]) {
+        offlinePeerIds[activeChatUserId] = true;
+    }
+    for (var key in chatHistory) {
+        if (!chatHistory.hasOwnProperty(key)) {
+            continue;
+        }
+        if (key === uid || isChannelPeerId(key)) {
+            continue;
+        }
+        if (!onlineIds[key]) {
+            offlinePeerIds[key] = true;
+        }
+    }
+    for (var k in unreadCount) {
+        if (!unreadCount.hasOwnProperty(k)) {
+            continue;
+        }
+        if (k === uid || isChannelPeerId(k)) {
+            continue;
+        }
+        if (!onlineIds[k] && unreadCount[k] > 0) {
+            offlinePeerIds[k] = true;
+        }
+    }
+
+    var offlineList = [];
+    for (var peerId in offlinePeerIds) {
+        if (offlinePeerIds.hasOwnProperty(peerId)) {
+            offlineList.push(peerId);
+        }
+    }
+
+    for (var j = 0; j < offlineList.length; j++) {
+        var offId = offlineList[j];
+        var offUser = userMap[offId];
+        if (offUser === undefined) {
+            continue;
+        }
+        var offActive = activeChatUserId === offId ? 'active' : '';
+        var offUnread = unreadCount[offId] || 0;
+        var offUnreadHtml = offUnread > 0 ? '<span class="unread-badge">' + offUnread + '</span>' : '';
+        $('#onlineUserList').append('<li id="user_' + offId + '" class="' + offActive + ' offline" onclick="selectChatUser(\'' + offId + '\')">' +
+            '<div class="user-row"><img class="img-responsive avatar_list" src="' + offUser.avatar + '">' +
+            '<div class="name_list">' + offUser.username + '(离线)</div>' + offUnreadHtml + '</div></li>');
     }
 }
 
@@ -533,7 +658,10 @@ function init() {
     // 定位
     getAddress();
     var user = getUser();
-    if (user !== '') {
+    if (user !== '' && user.userId && ('' + user.userId).trim() !== '') {
+        $('#account').hide();
+        $('#password').hide();
+        $('#register').hide();
         $('#username').hide();
         $('.avatar_list_div').remove();
         $('#avatarList').attr('src', user.avatar);
@@ -541,12 +669,19 @@ function init() {
         $('#logout').bind('click', logout);
         $('#logout').show();
     } else {
+        if (user !== '' && (!user.userId || ('' + user.userId).trim() === '')) {
+            Cookies.remove('user');
+        }
         // 初始化头像单选框
         showHeadPortrait();
     }
     $('#joinChat').bind('click', function () {
         $(this).button('loading');
-        connect();
+        authLoginThenConnect();
+    });
+    $('#register').bind('click', function () {
+        $(this).button('loading');
+        authRegisterThenConnect();
     });
 }
 
@@ -556,6 +691,531 @@ function init() {
 function logout() {
     Cookies.remove('user');
     refresh();
+}
+
+function authLoginThenConnect() {
+    var account = $('#account').val();
+    var password = $('#password').val();
+    if (account == null || ('' + account).trim() === '' || password == null || ('' + password).trim() === '') {
+        $('#joinChat').button('reset');
+        alert('请输入账号和密码');
+        return;
+    }
+
+    $.ajax({
+        url: '/api/auth/login',
+        type: 'POST',
+        contentType: 'application/json;charset=UTF-8',
+        data: JSON.stringify({account: ('' + account).trim(), password: '' + password}),
+        success: function (resp) {
+            $('#joinChat').button('reset');
+            if (!resp || resp.code !== 200) {
+                alert(resp && resp.desc ? resp.desc : '登录失败');
+                return;
+            }
+            if (!resp.data || !resp.data.userId) {
+                alert('登录失败');
+                return;
+            }
+            cacheUser(resp.data);
+            connect();
+        },
+        error: function () {
+            $('#joinChat').button('reset');
+            alert('网络异常');
+        }
+    });
+}
+
+function authRegisterThenConnect() {
+    var account = $('#account').val();
+    var password = $('#password').val();
+    var username = $('#username').val();
+    var avatar = $('#avatarList').attr('src');
+    if (account == null || ('' + account).trim() === '' || password == null || ('' + password).trim() === '') {
+        $('#register').button('reset');
+        alert('请输入账号和密码');
+        return;
+    }
+    if (username == null || ('' + username).trim() === '') {
+        $('#register').button('reset');
+        alert('请输入昵称');
+        return;
+    }
+
+    $.ajax({
+        url: '/api/auth/register',
+        type: 'POST',
+        contentType: 'application/json;charset=UTF-8',
+        data: JSON.stringify({
+            account: ('' + account).trim(),
+            password: '' + password,
+            username: htmlEncode(('' + username).trim()),
+            avatar: avatar,
+            address: address
+        }),
+        success: function (resp) {
+            $('#register').button('reset');
+            if (!resp || resp.code !== 200) {
+                alert(resp && resp.desc ? resp.desc : '注册失败');
+                return;
+            }
+            if (!resp.data || !resp.data.userId) {
+                alert('注册失败');
+                return;
+            }
+            cacheUser(resp.data);
+            connect();
+        },
+        error: function () {
+            $('#register').button('reset');
+            alert('网络异常');
+        }
+    });
+}
+
+function getStoredChannelId() {
+    return null;
+}
+
+function setStoredChannelId(channelId) {
+    return;
+}
+
+function initChannel() {
+    joinedChannelIds = {};
+    channelSubscriptions = {};
+    channelUnreadCount = {};
+    joinChannel('lobby', true, true);
+}
+
+function openChannelModal() {
+    $('#channelIdInput').val(activeChannelId);
+    $('#currentChannelText').text(activeChannelId);
+    $('#channelModal').modal('show');
+}
+
+function joinChannelFromInput() {
+    var channelId = $('#channelIdInput').val();
+    joinChannel(channelId, false, true);
+}
+
+function createChannelFromInput() {
+    var channelId = $('#channelIdInput').val();
+    if (channelId == null || ('' + channelId).trim() === '') {
+        alert('请输入频道ID');
+        return;
+    }
+    $.ajax({
+        url: '/api/channel/create',
+        type: 'POST',
+        contentType: 'application/json;charset=UTF-8',
+        data: JSON.stringify({channelId: ('' + channelId).trim()}),
+        success: function (resp) {
+            if (!resp || resp.code !== 200) {
+                alert(resp && resp.desc ? resp.desc : '创建失败');
+                return;
+            }
+            joinChannel(channelId, false, true);
+        },
+        error: function () {
+            alert('网络异常');
+        }
+    });
+}
+
+function joinChannel(channelId, silent, setActive) {
+    if (channelId == null || ('' + channelId).trim() === '') {
+        if (!silent) {
+            alert('请输入频道ID');
+        }
+        return;
+    }
+    $.ajax({
+        url: '/api/channel/join',
+        type: 'POST',
+        contentType: 'application/json;charset=UTF-8',
+        data: JSON.stringify({channelId: ('' + channelId).trim()}),
+        success: function (resp) {
+            if (!resp || resp.code !== 200) {
+                if (!silent) {
+                    alert(resp && resp.desc ? resp.desc : '加入失败');
+                }
+                return;
+            }
+            var id = (resp.data && resp.data.channelId) ? ('' + resp.data.channelId).trim() : ('' + channelId).trim();
+            if (id === '') {
+                return;
+            }
+            joinedChannelIds[id] = true;
+            if (channelSubscriptions[id] == null && stompClient) {
+                channelSubscriptions[id] = stompClient.subscribe('/topic/channel/' + id, function (data) {
+                    var payload = getData(data.body);
+                    if (payload && (!payload.channelId || ('' + payload.channelId).trim() === '')) {
+                        payload.channelId = id;
+                    }
+                    handleMessage(payload);
+                });
+            }
+            renderChannelList();
+            if (setActive) {
+                selectChannel(id);
+            }
+            $('#channelModal').modal('hide');
+        },
+        error: function () {
+            if (!silent) {
+                alert('网络异常');
+            }
+        }
+    });
+}
+
+function renderChannelList() {
+    var list = [];
+    for (var key in joinedChannelIds) {
+        if (joinedChannelIds.hasOwnProperty(key)) {
+            list.push(key);
+        }
+    }
+    list.sort();
+
+    var ul = $('#channelList');
+    ul.html('');
+
+    for (var i = 0; i < list.length; i++) {
+        var channelId = list[i];
+        var peerId = channelPeerId(channelId);
+        var active = (activeChatUserId === peerId) ? 'active' : '';
+        var unread = channelUnreadCount[channelId] || 0;
+        var unreadHtml = unread > 0 ? '<span class="unread-badge">' + unread + '</span>' : '';
+        ul.append('<li class="' + active + '" onclick="selectChannel(\'' + channelId + '\')">' +
+            '<div class="row"><div class="name"># ' + channelId + '</div>' + unreadHtml + '</div></li>');
+    }
+}
+
+function isFriend(userId) {
+    if (userId == null) {
+        return false;
+    }
+    return friendMap[('' + userId).trim()] === true;
+}
+
+function loadFriendList() {
+    if (uid == null || ('' + uid).trim() === '') {
+        return;
+    }
+    $.ajax({
+        url: '/api/friend/list',
+        type: 'GET',
+        data: {userId: uid},
+        success: function (resp) {
+            if (!resp || resp.code !== 200) {
+                return;
+            }
+            var list = (resp.data && resp.data.list) ? resp.data.list : [];
+            friendMap = {};
+            for (var i = 0; i < list.length; i++) {
+                var u = list[i];
+                if (!u || !u.userId) {
+                    continue;
+                }
+                friendMap[u.userId] = true;
+                userMap[u.userId] = u;
+            }
+            renderFriendList();
+        }
+    });
+}
+
+function renderFriendList() {
+    var ul = $('#friendList');
+    if (!ul || ul.length === 0) {
+        return;
+    }
+    var list = [];
+    for (var key in friendMap) {
+        if (friendMap.hasOwnProperty(key) && friendMap[key] === true) {
+            list.push(key);
+        }
+    }
+    ul.html('');
+    for (var i = 0; i < list.length; i++) {
+        var fid = list[i];
+        var user = userMap[fid];
+        if (!user) {
+            continue;
+        }
+        var active = (activeChatUserId === fid) ? 'active' : '';
+        var unread = unreadCount[fid] || 0;
+        var unreadHtml = unread > 0 ? '<span class="unread-badge">' + unread + '</span>' : '';
+        ul.append('<li class="' + active + '" onclick="selectChatUser(\'' + fid + '\')">' +
+            '<div class="row"><div class="name">' + user.username + '</div>' + unreadHtml + '</div></li>');
+    }
+}
+
+function openAddFriendModal() {
+    $('#friendUsernameInput').val('');
+    $('#addFriendModal').modal('show');
+}
+
+function addFriendFromInput() {
+    var name = $('#friendUsernameInput').val();
+    if (name == null || ('' + name).trim() === '') {
+        alert('请输入对方昵称');
+        return;
+    }
+    if (uid == null || ('' + uid).trim() === '') {
+        alert('请先连接聊天室');
+        return;
+    }
+    $.ajax({
+        url: '/api/friend/add',
+        type: 'POST',
+        contentType: 'application/json;charset=UTF-8',
+        data: JSON.stringify({userId: uid, friendUsername: ('' + name).trim()}),
+        success: function (resp) {
+            if (!resp || resp.code !== 200) {
+                if (resp && resp.code === 502) {
+                    alert('请先使用账号登录后再添加好友');
+                    return;
+                }
+                alert(resp && resp.desc ? resp.desc : '添加失败');
+                return;
+            }
+            $('#addFriendModal').modal('hide');
+            loadFriendList();
+        },
+        error: function () {
+            alert('网络异常');
+        }
+    });
+}
+
+function bindAdminEvents() {
+    $(document).on('keydown', '#adminPassword', function (e) {
+        if (e.keyCode === 13) {
+            adminLogin();
+        }
+    });
+}
+
+function openAdminModal() {
+    $('#adminModal').modal('show');
+    adminSyncView();
+    if (getAdminToken()) {
+        adminLoadUsers();
+    }
+}
+
+function getAdminToken() {
+    try {
+        return window.localStorage.getItem(ADMIN_TOKEN_KEY);
+    } catch (e) {
+        return null;
+    }
+}
+
+function setAdminToken(token) {
+    try {
+        if (token == null || ('' + token).trim() === '') {
+            window.localStorage.removeItem(ADMIN_TOKEN_KEY);
+        } else {
+            window.localStorage.setItem(ADMIN_TOKEN_KEY, token);
+        }
+    } catch (e) {
+    }
+}
+
+function adminSyncView() {
+    var token = getAdminToken();
+    if (token) {
+        $('#adminPanelView').show();
+        $('#adminLogoutBtn').show();
+        $('#adminLoginStatus').text('已登录');
+    } else {
+        $('#adminPanelView').hide();
+        $('#adminLogoutBtn').hide();
+        $('#adminLoginStatus').text('未登录');
+    }
+}
+
+function adminLogout() {
+    setAdminToken(null);
+    $('#adminUserTbody').empty();
+    adminSyncView();
+}
+
+function adminLogin() {
+    var username = $('#adminUsername').val();
+    var password = $('#adminPassword').val();
+    if (username == null || ('' + username).trim() === '' || password == null || ('' + password).trim() === '') {
+        alert('请输入用户名和密码');
+        return;
+    }
+
+    $.ajax({
+        url: '/api/admin/login',
+        type: 'POST',
+        contentType: 'application/json;charset=UTF-8',
+        data: JSON.stringify({username: ('' + username).trim(), password: '' + password}),
+        success: function (resp) {
+            if (!resp || resp.code !== 200) {
+                alert(resp && resp.desc ? resp.desc : '登录失败');
+                return;
+            }
+            var token = resp.data ? resp.data.token : null;
+            if (!token) {
+                alert('登录失败');
+                return;
+            }
+            setAdminToken(token);
+            $('#adminPassword').val('');
+            adminSyncView();
+            adminLoadUsers();
+        },
+        error: function () {
+            alert('网络异常');
+        }
+    });
+}
+
+function adminRequest(options) {
+    var token = getAdminToken();
+    if (!token) {
+        alert('请先登录管理员账号');
+        return;
+    }
+    if (!options) {
+        return;
+    }
+    options.headers = options.headers || {};
+    options.headers['X-Admin-Token'] = token;
+
+    var originalSuccess = options.success;
+    options.success = function (resp) {
+        if (resp && resp.code === 502) {
+            setAdminToken(null);
+            adminSyncView();
+            alert(resp.desc || '没有权限');
+            return;
+        }
+        if (originalSuccess) {
+            originalSuccess(resp);
+        }
+    };
+
+    var originalError = options.error;
+    options.error = function () {
+        if (originalError) {
+            originalError();
+        } else {
+            alert('网络异常');
+        }
+    };
+
+    $.ajax(options);
+}
+
+function adminLoadUsers() {
+    var keyword = $('#adminUserKeyword').val();
+    adminRequest({
+        url: '/api/admin/users',
+        type: 'GET',
+        data: {keyword: keyword},
+        success: function (resp) {
+            if (!resp || resp.code !== 200) {
+                alert(resp && resp.desc ? resp.desc : '加载失败');
+                return;
+            }
+            renderAdminUsers(resp.data || []);
+        }
+    });
+}
+
+function renderAdminUsers(users) {
+    var tbody = $('#adminUserTbody');
+    tbody.empty();
+    if (!users || users.length === 0) {
+        tbody.append('<tr><td colspan="6" class="text-center text-muted">暂无在线用户</td></tr>');
+        return;
+    }
+    for (var i = 0; i < users.length; i++) {
+        var u = users[i] || {};
+        var userId = u.userId || '';
+        var safeUserId = ('' + userId).replace(/'/g, '');
+        var username = htmlEncode(u.username || '');
+        var addressText = htmlEncode(u.address || '');
+        var statusText = (u.status === 1) ? '在线' : '离线';
+        var accountText = u.disabled ? '<span class="label label-danger">已禁用</span>' : '<span class="label label-success">正常</span>';
+        var avatar = u.avatar || '';
+
+        var actionHtml = '<div class="admin-actions">' +
+            '<button class="btn btn-warning btn-xs" type="button" onclick="adminKick(\'' + safeUserId + '\')">强制下线</button>';
+        if (u.disabled) {
+            actionHtml += '<button class="btn btn-success btn-xs" type="button" onclick="adminEnable(\'' + safeUserId + '\')">恢复</button>';
+        } else {
+            actionHtml += '<button class="btn btn-danger btn-xs" type="button" onclick="adminDisable(\'' + safeUserId + '\')">禁用</button>';
+        }
+        actionHtml += '</div>';
+
+        tbody.append('<tr>' +
+            '<td><img class="admin-user-avatar" src="' + avatar + '"/></td>' +
+            '<td>' + username + '</td>' +
+            '<td>' + addressText + '</td>' +
+            '<td>' + statusText + '</td>' +
+            '<td>' + accountText + '</td>' +
+            '<td>' + actionHtml + '</td>' +
+            '</tr>');
+    }
+}
+
+function adminDisable(userId) {
+    if (!confirm('确定禁用该用户吗？')) {
+        return;
+    }
+    adminRequest({
+        url: '/api/admin/users/' + userId + '/disable',
+        type: 'POST',
+        success: function (resp) {
+            if (!resp || resp.code !== 200) {
+                alert(resp && resp.desc ? resp.desc : '操作失败');
+                return;
+            }
+            adminLoadUsers();
+        }
+    });
+}
+
+function adminEnable(userId) {
+    adminRequest({
+        url: '/api/admin/users/' + userId + '/enable',
+        type: 'POST',
+        success: function (resp) {
+            if (!resp || resp.code !== 200) {
+                alert(resp && resp.desc ? resp.desc : '操作失败');
+                return;
+            }
+            adminLoadUsers();
+        }
+    });
+}
+
+function adminKick(userId) {
+    if (!confirm('确定强制该用户下线吗？')) {
+        return;
+    }
+    adminRequest({
+        url: '/api/admin/users/' + userId + '/kick',
+        type: 'POST',
+        success: function (resp) {
+            if (!resp || resp.code !== 200) {
+                alert(resp && resp.desc ? resp.desc : '操作失败');
+                return;
+            }
+            adminLoadUsers();
+        }
+    });
 }
 
 /**
@@ -569,71 +1229,167 @@ function refresh() {
  * 显示@用户列表
  * @param str
  */
-function showToUserList() {
-    var str = $('#content').val();
-    var index = str.lastIndexOf('@');
-    var name = str.substring(index + 1, str.length);
-    $('.toUserList ul').html('');
+function selectChatUser(userId) {
+    if (userId === null || userId === undefined || userMap[userId] === undefined) {
+        return;
+    }
+    if (!isFriend(userId)) {
+        alert('请先添加好友再私聊');
+        return;
+    }
+    activeChatUserId = userId;
+    unreadCount[userId] = 0;
+    renderUserList();
+    renderChatWindow(userId);
+}
 
-    if (index != -1) {
-        for (var i = 0; i < onlineUserList.length; i++) {
-            var obj = onlineUserList[i];
-            if (obj.userId === uid || obj.userId === 'robot') {
-                continue;
-            }
+function selectChannel(channelId) {
+    if (channelId == null || ('' + channelId).trim() === '') {
+        return;
+    }
+    var id = ('' + channelId).trim();
+    activeChannelId = id;
+    activeChatUserId = channelPeerId(id);
+    channelUnreadCount[id] = 0;
+    renderUserList();
+    renderChatWindow(activeChatUserId);
+}
 
-            if (name === '' || obj.username.indexOf(name) != -1) {
-                $('.toUserList ul').append('<li><a onclick="setToUser(this)" data-name="' + obj.username + '"' +
-                    ' data-userid="' + obj.userId + '"><div><img class=\'img-responsive avatar_list\' src="' + obj.avatar + '">\n' +
-                    '<div class="name_list">' + obj.username + '</div></div></a></li>');
+function renderUserList() {
+    renderChannelList();
+    renderFriendList();
+    showUserList(onlineUserList || []);
+}
+
+function renderChatWindow(peerId) {
+    if (isChannelPeerId(peerId)) {
+        var channelId = peerIdToChannelId(peerId);
+        $('#chatTargetTitle').html('当前会话：频道 ' + channelId);
+        $('#content').attr('placeholder', '发送到频道 ' + channelId + ' 的消息');
+        $('#show_content').html('');
+
+        var list = chatHistory[peerId] || [];
+        for (var j = 0; j < list.length; j++) {
+            appendChatHtml(buildMessageHtml(list[j]));
+        }
+        return;
+    }
+
+    var user = userMap[peerId];
+    if (user === undefined) {
+        return;
+    }
+
+    $('#chatTargetTitle').html('当前会话：' + user.username);
+    $('#content').attr('placeholder', '发送给 ' + user.username + ' 的消息');
+    $('#show_content').html('');
+
+    var list = chatHistory[peerId] || [];
+    for (var i = 0; i < list.length; i++) {
+        appendChatHtml(buildMessageHtml(list[i]));
+    }
+}
+
+function checkChatTarget() {
+    if (activeChatUserId === null) {
+        alert('请先从左侧在线用户列表中选择一个私聊对象');
+        return false;
+    }
+    return true;
+}
+
+function getPeerId(data) {
+    if (!data || !data.user) {
+        return null;
+    }
+
+    var senderId = data.user.userId;
+    if (data.type === 'ROBOT') {
+        if (data.channelId && ('' + data.channelId).trim() !== '') {
+            return channelPeerId(('' + data.channelId).trim());
+        }
+        return null;
+    }
+    if (data.type === 'REVOKE' && (!data.receiver || data.receiver.length === 0)) {
+        if (data.channelId && ('' + data.channelId).trim() !== '') {
+            return channelPeerId(('' + data.channelId).trim());
+        }
+        return null;
+    }
+
+    if (data.receiver && data.receiver.length > 0) {
+        for (var i = 0; i < data.receiver.length; i++) {
+            if (data.receiver[i] !== uid) {
+                return data.receiver[i];
             }
         }
-    }
-}
-
-/**
- * 设置@用户
- * @param ele
- */
-function setToUser(ele) {
-    var str = $('#content').val();
-    var name = $(ele).data('name') + ' ';
-    var index = str.lastIndexOf('@') + 1;
-    var substr = str.substr(index, str.length);
-
-    if (substr === '') {
-        $('#content').val(str + name);
-    } else {
-        $('#content').val(str.substr(0, index) + name);
-    }
-
-    $('.toUserList ul').html('');
-}
-
-/**
- * 通过name获取userid
- * @param name
- * @returns {Document.userId|string}
- */
-function getUserIdByName(name) {
-    if (name == '') {
-        return '';
-    }
-
-    for (var i = 0; i < onlineUserList.length; i++) {
-        var obj = onlineUserList[i];
-        if (obj.userId !== uid && obj.username === name) {
-            return obj.userId;
+        if (senderId !== uid) {
+            return senderId;
         }
     }
+
+    return senderId === uid ? null : senderId;
 }
 
-/**
- * 双击用户头像@用户
- * @param name
- */
-function showToUser(name) {
-    $('#content').val($('#content').val() + '@' + name + ' ');
+function isCurrentChat(peerId) {
+    return activeChatUserId !== null && peerId === activeChatUserId;
+}
+
+function cacheChatMessage(peerId, data) {
+    if (!chatHistory[peerId]) {
+        chatHistory[peerId] = [];
+    }
+    chatHistory[peerId].push(data);
+}
+
+function removeMessageFromCache(peerId, messageId) {
+    if (!chatHistory[peerId]) {
+        return;
+    }
+
+    chatHistory[peerId] = chatHistory[peerId].filter(function (item) {
+        return item.messageId !== messageId;
+    });
+}
+
+function increaseUnread(peerId) {
+    unreadCount[peerId] = (unreadCount[peerId] || 0) + 1;
+    renderUserList();
+}
+
+function increaseChannelUnread(channelId) {
+    channelUnreadCount[channelId] = (channelUnreadCount[channelId] || 0) + 1;
+    renderChannelList();
+}
+
+function appendChatHtml(html) {
+    $("#show_content").append(html);
+    jumpToLow();
+}
+
+function buildMessageHtml(data) {
+    if (data.type === 'SYSTEM') {
+        return '<li><div class="sys_message">' + data.message + '</div></li>';
+    }
+
+    var user = data.user;
+    var isMe = user.userId === uid;
+    var style_css = isMe ? 'even' : 'odd';
+    var event = isMe ? 'ondblclick=revokeMessage(this)' : '';
+    var event2 = isMe ? '' : 'ondblclick=selectChatUser("' + user.userId + '")';
+    var showMessage = data.message == null ? '' : htmlEncode(data.message);
+    var showImage = data.image == null ? '' : '<div class="show_image"><img src="' + data.image + '"/></div>';
+    var li = '<li class=' + style_css + ' id=' + data.messageId + ' data-receiver=' + data.receiver + '>';
+    var a = '<a class="user" ' + event2 + '>';
+    var avatar = '<img class="img-responsive avatar_" src=' + user.avatar + '\>';
+    var span = '<span class="user-name">' + user.username + '</span></a>';
+    var div_me = '<div class="reply-content-box"><span class="reply-time"><i class="glyphicon glyphicon-time"></i> '
+        + data.sendTime + '&nbsp;<i class="glyphicon glyphicon-map-marker"></i>' + user.address + '</span>';
+    var div = '<div class="reply-content-box"><span class="reply-time"><i class="glyphicon glyphicon-map-marker"></i>'
+        + user.address + '&nbsp;<i class="glyphicon glyphicon-time"></i> ' + data.sendTime + '</span>';
+    var div2 = '<div class="reply-content pr" ' + event + '><span class="arrow">&nbsp;</span>' + showMessage + showImage + '</div></div></li>';
+
+    return li + a + avatar + span + (isMe ? div_me : div) + div2;
 }
 
 /**
@@ -656,6 +1412,112 @@ function getAddress() {
 }
 
 var token;
+
+/**
+ * 绑定聊天页聊天记录搜索事件
+ */
+function bindRecordSearchEvents() {
+    if ($('#recordSearchKeyword').length > 0) {
+        $('#recordSearchKeyword').on('keydown', function (e) {
+            if (e.keyCode === 13) {
+                e.preventDefault();
+                searchRecordFromChat();
+            }
+        });
+    }
+}
+
+/**
+ * 打开聊天记录查询弹窗
+ */
+function openRecordSearchModal() {
+    if ($('#recordSearchModal').length < 1) {
+        return;
+    }
+    $('#recordSearchModal').modal('show');
+}
+
+/**
+ * 从聊天界面搜索聊天记录
+ */
+function searchRecordFromChat() {
+    var keywordInput = $('#recordSearchKeyword');
+    if (keywordInput.length < 1) {
+        return;
+    }
+
+    var keyword = keywordInput.val().trim();
+    if (keyword === '') {
+        alert('请输入查询关键词');
+        return;
+    }
+
+    $.ajax({
+        type: "GET",
+        url: "/api/record/search",
+        data: {
+            "keyword": keyword,
+            "limit": 100
+        },
+        dataType: "json",
+        success: function (data) {
+            codeMapping(data);
+            if (data.code === 200) {
+                renderChatRecordSearchResult(data.data.list || [], keyword);
+            }
+        }
+    });
+}
+
+/**
+ * 渲染聊天页聊天记录搜索结果
+ */
+function renderChatRecordSearchResult(list, keyword) {
+    var resultWrap = $('#recordSearchResultWrap');
+    var resultList = $('#recordSearchList');
+    var content = $('#recordSearchContent');
+    if (resultWrap.length < 1 || resultList.length < 1 || content.length < 1) {
+        return;
+    }
+
+    resultList.html('');
+    content.html('');
+
+    if (list.length === 0) {
+        resultWrap.show();
+        resultList.append('<li>未找到包含“' + htmlEncode(keyword) + '”的记录</li>');
+        return;
+    }
+
+    for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        var sender = item.sender == null || item.sender === '' ? '未知' : item.sender;
+        var snippet = item.content == null || item.content === '' ? '-' : htmlEncode(item.content);
+        resultList.append('<li data-url="' + item.url + '" onclick="readChatRecordContent(this)">' +
+            '第' + item.lineNumber + '行 发送者：' + htmlEncode(sender) + ' 消息：' +
+            '<span class="record-search-snippet">' + snippet + '</span></li>');
+    }
+    resultWrap.show();
+}
+
+/**
+ * 在聊天页弹窗中读取记录文件详情
+ */
+function readChatRecordContent(e) {
+    var url = $(e).data('url');
+    if (url === undefined || url === '') {
+        return;
+    }
+
+    $.ajax({
+        type: "GET",
+        url: url,
+        cache: false,
+        success: function (data) {
+            $('#recordSearchContent').html('<pre class="record-content-pre">' + htmlEncode(data) + '</pre>');
+        }
+    });
+}
 
 /**
  * 获取聊天记录列表
@@ -704,6 +1566,68 @@ function listRecord(name) {
 }
 
 /**
+ * 搜索聊天记录
+ */
+function searchRecord() {
+    var keyword = $('#searchKeyword').val();
+    if (keyword === undefined) {
+        return;
+    }
+
+    keyword = keyword.trim();
+    if (keyword === '') {
+        alert('请输入检索关键词');
+        return;
+    }
+
+    $.ajax({
+        type: "GET",
+        url: "/api/record/search",
+        headers: {
+            "token": token
+        },
+        data: {
+            "keyword": keyword,
+            "limit": 100
+        },
+        dataType: "json",
+        success: function (data) {
+            codeMapping(data);
+            if (data.code === 200) {
+                $('#record').show();
+                renderSearchResult(data.data.list || [], keyword);
+            }
+        }
+    });
+}
+
+/**
+ * 渲染检索结果
+ */
+function renderSearchResult(list, keyword) {
+    var result = $('#searchResult');
+    var resultList = $('#searchResultList');
+    resultList.html('');
+
+    if (list.length === 0) {
+        result.show();
+        resultList.append('<li>未找到包含 “' + htmlEncode(keyword) + '” 的聊天记录</li>');
+        return;
+    }
+
+    for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        var sender = item.sender == null || item.sender === '' ? '未知' : item.sender;
+        var snippet = item.content == null || item.content === '' ? '-' : htmlEncode(item.content);
+        resultList.append('<li class="file" onclick="readContent(this)" data-url="' + item.url + '">' +
+            '第' + item.lineNumber + '行 发送者：' + htmlEncode(sender) + ' 消息：' +
+            '<span class="search-snippet">' + snippet + '</span></li>');
+    }
+
+    result.show();
+}
+
+/**
  * 读取文件内容
  * @param url
  */
@@ -730,6 +1654,8 @@ function checkPassword() {
         alert("请输入访问密码！！！");
     } else {
         token = btoa(val);
+        $('#searchResult').hide();
+        $('#searchResultList').html('');
         listRecord('', '');
     }
 }
@@ -739,33 +1665,16 @@ function checkPassword() {
  * @param data
  */
 function showRobotMsg(data) {
-    var user = data.user;
-    var event = 'ondblclick=showToRobot()';
-
-    var li = '<li class="odd" id=' + data.messageId + '>';
-    var a = '<a class="user" ' + event + '>';
-    var avatar = '<img class="img-responsive avatar_" src=' + user.avatar + '\>';
-    var span = '<span class="user-name">' + user.username + '</span></a>';
-    var div = '<div class="reply-content-box"><span class="reply-time"><i class="glyphicon glyphicon-map-marker"></i>'
-        + user.address + '&nbsp;<i class="glyphicon glyphicon-time"></i> ' + data.sendTime + '</span>';
-    var div2 = '<div class="reply-content pr"><span class="arrow">&nbsp;</span>' + data.message + '</div></div></li>';
-
-    var html = li + a + avatar + span + div + div2;
-
-    $("#show_content").append(html);
-    jumpToLow();
-}
-
-/**
- * 与机器人对话
- * @param name
- */
-function showToRobot() {
-    var val = $('#content').val();
-    if (val.startsWith('#')) {
+    var peerId = getPeerId(data);
+    if (peerId === null) {
         return;
     }
-    $('#content').val('#' + val);
+    cacheChatMessage(peerId, data);
+    if (!isCurrentChat(peerId)) {
+        increaseUnread(peerId);
+        return;
+    }
+    appendChatHtml(buildMessageHtml(data));
 }
 
 /**

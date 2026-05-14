@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="2100" viewBox="0 0 1500 2100">
+  <defs>
+    <style>
+      .title { font: 700 44px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .txt { font: 26px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .small { font: 22px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #374151; }
+      .box { fill: #ffffff; stroke: #111827; stroke-width: 2.5; }
+      .decision { fill: #ffffff; stroke: #111827; stroke-width: 2.5; }
+      .line { stroke: #111827; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .yesno { font: 20px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#111827"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1500" height="2100" fill="#ffffff"/>
+  <text x="750" y="70" text-anchor="middle" class="title">机器人接入功能流程图</text>
+
+  <rect class="box" x="260" y="120" width="980" height="80"/>
+  <text x="750" y="170" text-anchor="middle" class="txt">1. 用户进入聊天页面并发送消息</text>
+
+  <rect class="box" x="260" y="240" width="980" height="80"/>
+  <text x="750" y="290" text-anchor="middle" class="txt">2. 系统接收用户消息内容</text>
+
+  <polygon class="decision" points="750,380 1020,440 750,500 480,440"/>
+  <text x="750" y="450" text-anchor="middle" class="txt">3. 是否为机器人指令消息？</text>
+
+  <rect class="box" x="90" y="590" width="500" height="110"/>
+  <text x="340" y="640" text-anchor="middle" class="txt">否：按普通聊天消息处理</text>
+  <text x="340" y="680" text-anchor="middle" class="small">发送到群聊/私聊对象</text>
+
+  <rect class="box" x="900" y="590" width="500" height="120"/>
+  <text x="1150" y="640" text-anchor="middle" class="txt">是：提取机器人问题内容</text>
+  <text x="1150" y="680" text-anchor="middle" class="small">去除指令前缀，准备调用机器人服务</text>
+
+  <rect class="box" x="900" y="770" width="500" height="90"/>
+  <text x="1150" y="825" text-anchor="middle" class="txt">4. 系统请求机器人接口</text>
+
+  <polygon class="decision" points="1150,940 1380,1000 1150,1060 920,1000"/>
+  <text x="1150" y="1010" text-anchor="middle" class="txt">5. 机器人接口是否调用成功？</text>
+
+  <rect class="box" x="700" y="1150" width="430" height="100"/>
+  <text x="915" y="1200" text-anchor="middle" class="txt">失败：返回默认提示消息</text>
+  <text x="915" y="1235" text-anchor="middle" class="small">如“暂时无法回答，请稍后重试”</text>
+
+  <rect class="box" x="1160" y="1150" width="300" height="120"/>
+  <text x="1310" y="1200" text-anchor="middle" class="txt">成功：获取机器人回复内容</text>
+  <text x="1310" y="1240" text-anchor="middle" class="small">生成机器人消息</text>
+
+  <rect class="box" x="860" y="1340" width="600" height="90"/>
+  <text x="1160" y="1395" text-anchor="middle" class="txt">6. 系统将机器人回复推送到聊天窗口</text>
+
+  <rect class="box" x="860" y="1490" width="600" height="90"/>
+  <text x="1160" y="1545" text-anchor="middle" class="txt">7. 用户收到并查看机器人回复</text>
+
+  <polygon class="decision" points="1160,1660 1390,1720 1160,1780 930,1720"/>
+  <text x="1160" y="1730" text-anchor="middle" class="txt">8. 用户是否继续向机器人提问？</text>
+
+  <rect class="box" x="760" y="1860" width="430" height="100"/>
+  <text x="975" y="1910" text-anchor="middle" class="txt">否：本次机器人交互结束</text>
+  <text x="975" y="1945" text-anchor="middle" class="small">流程结束</text>
+
+  <rect class="box" x="1220" y="1860" width="230" height="120"/>
+  <text x="1335" y="1910" text-anchor="middle" class="txt">是：返回输入框</text>
+  <text x="1335" y="1950" text-anchor="middle" class="small">继续提问</text>
+
+  <line class="line" x1="750" y1="200" x2="750" y2="240"/>
+  <line class="line" x1="750" y1="320" x2="750" y2="380"/>
+
+  <path class="line" d="M750 500 L340 590"/>
+  <text x="560" y="555" text-anchor="middle" class="yesno">否</text>
+
+  <path class="line" d="M750 500 L1150 590"/>
+  <text x="960" y="555" text-anchor="middle" class="yesno">是</text>
+
+  <line class="line" x1="1150" y1="710" x2="1150" y2="770"/>
+  <line class="line" x1="1150" y1="860" x2="1150" y2="940"/>
+
+  <path class="line" d="M1120 1060 L915 1150"/>
+  <text x="1010" y="1110" text-anchor="middle" class="yesno">否</text>
+
+  <path class="line" d="M1180 1060 L1310 1150"/>
+  <text x="1245" y="1110" text-anchor="middle" class="yesno">是</text>
+
+  <line class="line" x1="1310" y1="1270" x2="1240" y2="1340"/>
+  <line class="line" x1="915" y1="1250" x2="950" y2="1340"/>
+
+  <line class="line" x1="1160" y1="1430" x2="1160" y2="1490"/>
+  <line class="line" x1="1160" y1="1580" x2="1160" y2="1660"/>
+
+  <path class="line" d="M1130 1780 L975 1860"/>
+  <text x="1050" y="1820" text-anchor="middle" class="yesno">否</text>
+
+  <path class="line" d="M1190 1780 L1335 1860"/>
+  <text x="1260" y="1820" text-anchor="middle" class="yesno">是</text>
+
+  <path class="line" d="M1335 1980 C1450 2040, 1450 280, 1240 280"/>
+  <text x="1430" y="1140" text-anchor="middle" class="yesno">继续提问</text>
+
+  <path class="line" d="M340 700 L860 1490"/>
+  <text x="520" y="1030" text-anchor="middle" class="yesno">普通消息链路</text>
+</svg>

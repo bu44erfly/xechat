@@ -1,13 +1,21 @@
 package cn.xeblog.xechat.utils;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
 import javax.annotation.PostConstruct;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,37 +30,36 @@ import java.util.regex.Pattern;
 @Configuration
 public class SensitiveWordUtils {
 
-    private final static String[] LOVE_CHINA = {"富强", "民主", "文明", "和谐", "自由", "平等", "公正", "法治", "爱国",
-            "敬业", "诚信", "友善"};
+    private static final String REPLACE_WORD = "***";
+    private static final Pattern INVALID_PATTERN = Pattern.compile("[`~!@#$%^&*()+=|{}':;,\\[\\].<>/?！￥…（）—【】｛｝｜／《》‘；：＋——＊&……％$＃@！～”“’。，、？·\\s\t\r\n]");
 
     /**
      * 敏感词库
      */
     private static Set<String> keyWords;
-    /**
-     * 敏感词根节点
-     */
-    private static SensitiveWordNode rootNode;
+    private static volatile boolean initialized = false;
+    private static final List<AcNode> AC = new ArrayList<>();
 
     /**
      * 读取敏感词
      */
     private static void readSensitiveWords() {
         keyWords = new HashSet<>();
-        BufferedReader reader = null;
-
-        try {
-            reader = new BufferedReader(new InputStreamReader(SensitiveWordUtils.class
-                    .getResourceAsStream("/sensitive-word.txt"), "utf-8"));
-
+        try (InputStream is = SensitiveWordUtils.class.getResourceAsStream("/sensitive-word.txt");
+             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+            if (is == null) {
+                log.warn("未找到敏感词文件 sensitive-word.txt");
+                return;
+            }
             String line;
             while ((line = reader.readLine()) != null) {
-                keyWords.add(line.trim());
+                String word = invalidClear(line);
+                if (StringUtils.hasText(word)) {
+                    keyWords.add(word);
+                }
             }
         } catch (Exception e) {
             log.error("读取敏感词库出现异常！ error -> {}", e);
-        } finally {
-            IOUtils.closeQuietly(reader);
         }
     }
 
@@ -60,42 +67,80 @@ public class SensitiveWordUtils {
      * 初始化敏感词库
      */
     private static void init() {
-        if (rootNode != null) {
+        if (initialized) {
             return;
         }
-        if (keyWords == null) {
-            // 读取敏感词库
-            readSensitiveWords();
-            log.info("初始化敏感词库，共有{}个敏感词", keyWords.size());
-        }
+        synchronized (SensitiveWordUtils.class) {
+            if (initialized) {
+                return;
+            }
+            if (keyWords == null) {
+                // 读取敏感词库
+                readSensitiveWords();
+                log.info("初始化敏感词库，共有{}个敏感词", keyWords.size());
+            }
 
-        // 初始化根节点
-        rootNode = new SensitiveWordNode(' ');
-        log.info("初始化敏感词节点");
-
-        // 创建敏感词
-        for (String keyWord : keyWords) {
-            buildSensitiveWordNode(keyWord);
+            buildAcAutomaton();
+            initialized = true;
+            log.info("初始化AC自动机完成，节点数: {}", AC.size());
         }
     }
 
     /**
-     * 构建敏感词节点
-     *
-     * @param keyWord
+     * 构建AC自动机
      */
-    private static void buildSensitiveWordNode(String keyWord) {
-        SensitiveWordNode nowNode = rootNode;
+    private static void buildAcAutomaton() {
+        AC.clear();
+        AC.add(new AcNode());
 
-        for (Character c : keyWord.toCharArray()) {
-            SensitiveWordNode nextNode = nowNode.getNextNode(c);
-            if (nextNode == null) {
-                nextNode = new SensitiveWordNode(c);
-                nowNode.putNextNode(nextNode);
-            }
-            nowNode = nextNode;
+        for (String keyWord : keyWords) {
+            insertWord(keyWord);
         }
-        nowNode.setEnd(true);
+
+        Queue<Integer> queue = new ArrayDeque<>();
+        for (Map.Entry<Character, Integer> entry : AC.get(0).next.entrySet()) {
+            int child = entry.getValue();
+            AC.get(child).fail = 0;
+            queue.offer(child);
+        }
+
+        while (!queue.isEmpty()) {
+            int u = queue.poll();
+            AcNode node = AC.get(u);
+            for (Map.Entry<Character, Integer> entry : node.next.entrySet()) {
+                char c = entry.getKey();
+                int v = entry.getValue();
+
+                int f = node.fail;
+                while (f != 0 && !AC.get(f).next.containsKey(c)) {
+                    f = AC.get(f).fail;
+                }
+                if (AC.get(f).next.containsKey(c)) {
+                    AC.get(v).fail = AC.get(f).next.get(c);
+                } else {
+                    AC.get(v).fail = 0;
+                }
+                queue.offer(v);
+            }
+        }
+    }
+
+    /**
+     * 向Trie中插入关键词
+     */
+    private static void insertWord(String keyWord) {
+        int u = 0;
+        for (int i = 0; i < keyWord.length(); i++) {
+            char c = keyWord.charAt(i);
+            Integer next = AC.get(u).next.get(c);
+            if (next == null) {
+                next = AC.size();
+                AC.get(u).next.put(c, next);
+                AC.add(new AcNode());
+            }
+            u = next;
+        }
+        AC.get(u).wordLength = keyWord.length();
     }
 
     /**
@@ -105,58 +150,152 @@ public class SensitiveWordUtils {
      * @return true:存在敏感词 false:未存在敏感词
      */
     public static boolean hasSensitiveWord(String text) {
-        if (StringUtils.isEmpty(text)) {
+        if (!StringUtils.hasText(text)) {
             return false;
         }
 
-        if (rootNode == null) {
-            log.info("敏感词节点未被初始化！");
+        if (!initialized) {
+            init();
+        }
+
+        // 清除非法字符后匹配
+        String normalizedText = invalidClear(text);
+        if (!StringUtils.hasText(normalizedText)) {
             return false;
         }
 
-        // 清除非法字符
-        text = invalidClear(text);
-        StringBuilder sb = new StringBuilder();
-        SensitiveWordNode nowNode;
+        List<int[]> ranges = matchSensitiveRanges(normalizedText);
+        if (!ranges.isEmpty()) {
+            int[] first = ranges.get(0);
+            String hit = normalizedText.substring(first[0], first[1] + 1);
+            log.info("[{}] => 存在敏感词 -> {}", normalizedText, hit);
+            return true;
+        }
+        return false;
+    }
 
-        for (int i = 0; i < text.length(); i++) {
-            nowNode = rootNode;
-            for (int j = i; j < text.length(); j++) {
-                nowNode = nowNode.getNextNode(text.charAt(j));
-                if (nowNode == null) {
-                    sb.setLength(0);
-                    break;
+    /**
+     * 匹配归一化文本中的敏感词区间
+     */
+    private static List<int[]> matchSensitiveRanges(String normalizedText) {
+        List<int[]> ranges = new ArrayList<>();
+        int state = 0;
+        for (int i = 0; i < normalizedText.length(); i++) {
+            char c = normalizedText.charAt(i);
+            while (state != 0 && !AC.get(state).next.containsKey(c)) {
+                state = AC.get(state).fail;
+            }
+            if (AC.get(state).next.containsKey(c)) {
+                state = AC.get(state).next.get(c);
+            }
+
+            int t = state;
+            while (t != 0) {
+                if (AC.get(t).wordLength > 0) {
+                    int start = i - AC.get(t).wordLength + 1;
+                    if (start >= 0) {
+                        ranges.add(new int[]{start, i});
+                    }
                 }
-
-                sb.append(nowNode.getKey());
-
-                if (nowNode.isEnd()) {
-                    log.info("[{}] => 存在敏感词 -> {}", text, sb.toString());
-                    return true;
-                }
+                t = AC.get(t).fail;
             }
         }
 
-        return false;
+        return ranges;
     }
 
     @PostConstruct
     public void initData() {
+        reload();
+    }
+
+    /**
+     * 强制重载敏感词并重建AC自动机
+     */
+    public static void reload() {
+        synchronized (SensitiveWordUtils.class) {
+            initialized = false;
+            keyWords = null;
+            AC.clear();
+        }
         init();
     }
 
     /**
-     * 热爱祖国，热爱人民
+     * 敏感词替换（保持旧接口不变）
      *
      * @param text
-     * @return 如果存在敏感词则返回处理后的结果，否则直接返回原内容
+     * @return 如果存在敏感词则将敏感词替换为***，否则返回原内容
      */
     public static String loveChina(String text) {
-        if (hasSensitiveWord(text)) {
-            return LOVE_CHINA[(int) (Math.random() * LOVE_CHINA.length)];
+        return replaceSensitiveWord(text, REPLACE_WORD);
+    }
+
+    /**
+     * 使用指定替换词处理敏感词
+     */
+    public static String replaceSensitiveWord(String text, String replaceWord) {
+        if (!StringUtils.hasText(text)) {
+            return text;
+        }
+        if (!initialized) {
+            init();
+        }
+        if (AC.isEmpty()) {
+            return text;
         }
 
-        return text;
+        String normalizedText = invalidClear(text);
+        if (!StringUtils.hasText(normalizedText)) {
+            return text;
+        }
+
+        List<Integer> normalizedToOriginal = new ArrayList<>(normalizedText.length());
+        StringBuilder normalizedBuilder = new StringBuilder(normalizedText.length());
+        for (int i = 0; i < text.length(); i++) {
+            String c = String.valueOf(text.charAt(i));
+            Matcher matcher = INVALID_PATTERN.matcher(c);
+            if (matcher.matches()) {
+                continue;
+            }
+            normalizedBuilder.append(text.charAt(i));
+            normalizedToOriginal.add(i);
+        }
+        String normalized = normalizedBuilder.toString();
+        if (!StringUtils.hasText(normalized)) {
+            return text;
+        }
+
+        List<int[]> ranges = matchSensitiveRanges(normalized);
+        if (ranges.isEmpty()) {
+            return text;
+        }
+
+        boolean[] mark = new boolean[text.length()];
+        for (int[] range : ranges) {
+            int start = normalizedToOriginal.get(range[0]);
+            int end = normalizedToOriginal.get(range[1]);
+            for (int i = start; i <= end; i++) {
+                mark[i] = true;
+            }
+        }
+
+        String replacement = StringUtils.hasText(replaceWord) ? replaceWord : REPLACE_WORD;
+        StringBuilder result = new StringBuilder(text.length());
+        int i = 0;
+        while (i < text.length()) {
+            if (!mark[i]) {
+                result.append(text.charAt(i));
+                i++;
+                continue;
+            }
+            result.append(replacement);
+            while (i < text.length() && mark[i]) {
+                i++;
+            }
+        }
+
+        return result.toString();
     }
 
     /**
@@ -166,8 +305,13 @@ public class SensitiveWordUtils {
      * @return 返回清除非法字符后的结果
      */
     private static String invalidClear(String str) {
-        String regEx = "[`~!@#$%^&*()+=|{}':;,\\[\\].<>/?！￥…（）—【】｛｝｜／《》‘；：＋——＊&……％$＃@！～”“’。，、？·\\s\t\r\n]";
-        Matcher m = Pattern.compile(regEx).matcher(str);
+        Matcher m = INVALID_PATTERN.matcher(str);
         return m.replaceAll("").trim();
+    }
+
+    private static class AcNode {
+        private final Map<Character, Integer> next = new HashMap<>();
+        private int fail = 0;
+        private int wordLength = 0;
     }
 }

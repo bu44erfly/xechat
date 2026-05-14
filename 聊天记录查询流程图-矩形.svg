@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="2200" viewBox="0 0 1500 2200">
+  <defs>
+    <style>
+      .title { font: 700 46px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .txt { font: 26px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .small { font: 22px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #374151; }
+      .box { fill: #ffffff; stroke: #111827; stroke-width: 2.5; }
+      .decision { fill: #ffffff; stroke: #111827; stroke-width: 2.5; }
+      .line { stroke: #111827; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .yesno { font: 20px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#111827"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1500" height="2200" fill="#ffffff"/>
+  <text x="750" y="70" text-anchor="middle" class="title">聊天记录查询流程图</text>
+
+  <rect class="box" x="260" y="120" width="980" height="80"/>
+  <text x="750" y="170" text-anchor="middle" class="txt">1. 用户在聊天主页点击“聊天记录”按钮</text>
+
+  <rect class="box" x="260" y="240" width="980" height="80"/>
+  <text x="750" y="290" text-anchor="middle" class="txt">2. 前端打开记录查询弹窗（recordSearchModal）</text>
+
+  <rect class="box" x="260" y="360" width="980" height="80"/>
+  <text x="750" y="410" text-anchor="middle" class="txt">3. 用户输入关键词并触发查询（回车或点击查询）</text>
+
+  <polygon class="decision" points="750,500 1020,560 750,620 480,560"/>
+  <text x="750" y="570" text-anchor="middle" class="txt">4. 关键词是否为空？</text>
+
+  <rect class="box" x="90" y="710" width="500" height="100"/>
+  <text x="340" y="760" text-anchor="middle" class="txt">为空：前端提示“请输入查询关键词”</text>
+  <text x="340" y="795" text-anchor="middle" class="small">流程结束/等待重新输入</text>
+
+  <rect class="box" x="900" y="710" width="500" height="110"/>
+  <text x="1150" y="760" text-anchor="middle" class="txt">不为空：发起 GET /api/record/search</text>
+  <text x="1150" y="800" text-anchor="middle" class="small">参数：keyword, limit</text>
+
+  <rect class="box" x="900" y="860" width="500" height="80"/>
+  <text x="1150" y="910" text-anchor="middle" class="txt">5. ChatRecordController.searchChatRecord 接收请求</text>
+
+  <rect class="box" x="900" y="980" width="500" height="90"/>
+  <text x="1150" y="1035" text-anchor="middle" class="txt">6. 调用 ChatRecordService.searchRecord</text>
+
+  <rect class="box" x="900" y="1110" width="500" height="120"/>
+  <text x="1150" y="1160" text-anchor="middle" class="txt">7. 服务层递归扫描 markdown 文件</text>
+  <text x="1150" y="1200" text-anchor="middle" class="small">逐行 containsIgnoreCase 匹配关键词</text>
+
+  <rect class="box" x="900" y="1270" width="500" height="130"/>
+  <text x="1150" y="1320" text-anchor="middle" class="txt">8. 组装命中结果</text>
+  <text x="1150" y="1360" text-anchor="middle" class="small">fileName、lineNumber、sender、content、url</text>
+
+  <rect class="box" x="900" y="1440" width="500" height="80"/>
+  <text x="1150" y="1490" text-anchor="middle" class="txt">9. 返回 ResponseVO(list)</text>
+
+  <rect class="box" x="900" y="1560" width="500" height="90"/>
+  <text x="1150" y="1615" text-anchor="middle" class="txt">10. 前端渲染命中列表（行号/发送者/摘要）</text>
+
+  <polygon class="decision" points="1150,1730 1380,1790 1150,1850 920,1790"/>
+  <text x="1150" y="1800" text-anchor="middle" class="txt">11. 是否有命中结果？</text>
+
+  <rect class="box" x="740" y="1930" width="380" height="100"/>
+  <text x="930" y="1980" text-anchor="middle" class="txt">无命中：显示“未找到记录”</text>
+  <text x="930" y="2015" text-anchor="middle" class="small">流程结束</text>
+
+  <rect class="box" x="1160" y="1930" width="300" height="130"/>
+  <text x="1310" y="1980" text-anchor="middle" class="txt">有命中：用户点击某条记录</text>
+  <text x="1310" y="2020" text-anchor="middle" class="small">GET 记录 url 并显示完整内容</text>
+
+  <!-- 主干箭头 -->
+  <line class="line" x1="750" y1="200" x2="750" y2="240"/>
+  <line class="line" x1="750" y1="320" x2="750" y2="360"/>
+  <line class="line" x1="750" y1="440" x2="750" y2="500"/>
+
+  <!-- 关键词判断分支 -->
+  <path class="line" d="M750 620 L340 710"/>
+  <text x="560" y="675" text-anchor="middle" class="yesno">是（空）</text>
+  <path class="line" d="M750 620 L1150 710"/>
+  <text x="960" y="675" text-anchor="middle" class="yesno">否</text>
+
+  <!-- 右侧检索流程 -->
+  <line class="line" x1="1150" y1="820" x2="1150" y2="860"/>
+  <line class="line" x1="1150" y1="940" x2="1150" y2="980"/>
+  <line class="line" x1="1150" y1="1070" x2="1150" y2="1110"/>
+  <line class="line" x1="1150" y1="1230" x2="1150" y2="1270"/>
+  <line class="line" x1="1150" y1="1400" x2="1150" y2="1440"/>
+  <line class="line" x1="1150" y1="1520" x2="1150" y2="1560"/>
+  <line class="line" x1="1150" y1="1650" x2="1150" y2="1730"/>
+
+  <!-- 命中判断分支 -->
+  <path class="line" d="M1120 1850 L930 1930"/>
+  <text x="1030" y="1895" text-anchor="middle" class="yesno">否</text>
+  <path class="line" d="M1180 1850 L1310 1930"/>
+  <text x="1245" y="1895" text-anchor="middle" class="yesno">是</text>
+</svg>

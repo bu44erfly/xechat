@@ -33,11 +33,44 @@
         .file {
             list-style-image: url('/images/file.png');
         }
+
+        .search-panel {
+            margin-bottom: 10px;
+        }
+
+        .search-result-wrap {
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            padding: 8px 12px;
+            margin-bottom: 10px;
+        }
+
+        #searchResultList li {
+            cursor: pointer;
+            line-height: 26px;
+            list-style: decimal;
+        }
+
+        .search-snippet {
+            color: #666;
+            margin-left: 6px;
+        }
     </style>
 </head>
 <body>
 
 <div id="record" style="display: none">
+    <div class="search-panel input-group">
+        <input id="searchKeyword" class="form-control" type="text" maxlength="50" placeholder="输入关键词检索聊天记录"/>
+        <span class="input-group-btn">
+            <button class="btn btn-primary" type="button" onclick="searchRecord()">查找</button>
+        </span>
+    </div>
+    <div id="searchResult" class="search-result-wrap" style="display: none">
+        <p>检索结果</p>
+        <ol id="searchResultList"></ol>
+    </div>
     <div>
         <p>聊天记录文件列表</p>
         <div style="width: 100%;height: 300px;overflow-y: scroll">
@@ -72,6 +105,12 @@
 <script>
     $(function () {
         $('#passwordModel').modal('show');
+        $('#searchKeyword').on('keydown', function (e) {
+            if (e.keyCode === 13) {
+                e.preventDefault();
+                searchRecord();
+            }
+        });
     });
 </script>
 </body>

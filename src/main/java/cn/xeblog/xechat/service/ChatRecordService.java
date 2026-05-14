@@ -27,4 +27,13 @@ public interface ChatRecordService {
      * @return 聊天记录列表
      */
     List<HashMap<String, Object>> listRecord(String directoryName);
+
+    /**
+     * 按关键词检索聊天记录
+     *
+     * @param keyword 关键词
+     * @param limit   返回条数限制
+     * @return 命中结果
+     */
+    List<HashMap<String, Object>> searchRecord(String keyword, Integer limit);
 }

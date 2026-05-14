@@ -1,6 +1,7 @@
 package cn.xeblog.xechat.service.impl;
 
 import cn.xeblog.xechat.annotation.ChatRecord;
+import cn.xeblog.xechat.cache.OfflineMessageCache;
 import cn.xeblog.xechat.cache.UserCache;
 import cn.xeblog.xechat.constant.RobotConstant;
 import cn.xeblog.xechat.constant.StompConstant;
@@ -21,6 +22,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * @author yanpanyi
@@ -59,9 +62,21 @@ public class MessageServiceImpl implements MessageService {
         }
 
         ResponseVO responseVO = buildResponseVo(messageVO);
+        Set<String> targetIds = new LinkedHashSet<>();
         for (int i = 0, len = receiver.length; i < len; i++) {
-            // 将消息发送到指定用户 参数说明：1.消息接收者 2.消息订阅地址 3.消息内容
-            messagingTemplate.convertAndSendToUser(receiver[i], StompConstant.SUB_USER, responseVO);
+            String targetId = receiver[i];
+            if (targetId == null || targetId.trim().isEmpty()) {
+                continue;
+            }
+            targetIds.add(targetId.trim());
+        }
+
+        for (String targetId : targetIds) {
+            if (UserCache.getUser(targetId) == null) {
+                OfflineMessageCache.add(targetId, messageVO);
+                continue;
+            }
+            messagingTemplate.convertAndSendToUser(targetId, StompConstant.SUB_USER, responseVO);
         }
     }
 
@@ -73,14 +88,19 @@ public class MessageServiceImpl implements MessageService {
         return new ResponseVO(messageVO);
     }
 
-    @Async
+    @Async("xechatTaskExecutor")
     @Override
     public void sendMessageToRobot(String subAddress, String message, User user) throws Exception {
         log.info("user: {} -> 发送消息到机器人 -> {}", user, message);
-        String robotMessage = robotService.sendMessage(user.getUserId(), message.replaceFirst(RobotConstant.prefix,
-                ""));
-        log.info("机器人响应结果 -> {}", robotMessage);
-        sendRobotMessage(subAddress, robotMessage);
+        try {
+            String robotMessage = robotService.sendMessage(user.getUserId(), message.replaceFirst(RobotConstant.prefix,
+                    ""));
+            log.info("机器人响应结果 -> {}", robotMessage);
+            sendRobotMessage(subAddress, robotMessage);
+        } catch (Exception e) {
+            log.error("调用机器人接口失败", e);
+            sendRobotMessage(subAddress, "机器人暂时无法响应，请稍后再试。");
+        }
     }
 
     @Override

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="980" viewBox="0 0 1900 980">
+  <defs>
+    <style>
+      .title { font: 700 44px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .entity { fill: #ffffff; stroke: #111827; stroke-width: 2.5; }
+      .relation { fill: #ffffff; stroke: #111827; stroke-width: 2.5; }
+      .txt { font: 32px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .small { font: 24px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #111827; }
+      .line { stroke: #111827; stroke-width: 2.2; fill: none; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1900" height="980" fill="#ffffff"/>
+  <text x="950" y="70" text-anchor="middle" class="title">系统ER图</text>
+
+  <!-- 实体（仅矩形） -->
+  <rect class="entity" x="90" y="210" width="280" height="100"/>
+  <text class="txt" x="230" y="273" text-anchor="middle">用户</text>
+
+  <rect class="entity" x="560" y="210" width="280" height="100"/>
+  <text class="txt" x="700" y="273" text-anchor="middle">会话</text>
+
+  <rect class="entity" x="1030" y="210" width="300" height="100"/>
+  <text class="txt" x="1180" y="273" text-anchor="middle">消息</text>
+
+  <rect class="entity" x="1510" y="210" width="300" height="100"/>
+  <text class="txt" x="1660" y="273" text-anchor="middle">上传文件</text>
+
+  <rect class="entity" x="520" y="700" width="330" height="100"/>
+  <text class="txt" x="685" y="763" text-anchor="middle">敏感词</text>
+
+  <rect class="entity" x="1110" y="700" width="330" height="100"/>
+  <text class="txt" x="1275" y="763" text-anchor="middle">聊天记录</text>
+
+  <!-- 联系（仅菱形） -->
+  <polygon class="relation" points="450,260 510,210 570,260 510,310"/>
+  <text class="small" x="510" y="268" text-anchor="middle">参与</text>
+  <line class="line" x1="370" y1="260" x2="450" y2="260"/>
+  <line class="line" x1="570" y1="260" x2="560" y2="260"/>
+  <text class="small" x="395" y="235">N</text>
+  <text class="small" x="540" y="235">N</text>
+
+  <polygon class="relation" points="920,260 980,210 1040,260 980,310"/>
+  <text class="small" x="980" y="268" text-anchor="middle">包含</text>
+  <line class="line" x1="840" y1="260" x2="920" y2="260"/>
+  <line class="line" x1="1040" y1="260" x2="1030" y2="260"/>
+  <text class="small" x="865" y="235">1</text>
+  <text class="small" x="1010" y="235">N</text>
+
+  <polygon class="relation" points="930,430 995,375 1060,430 995,485"/>
+  <text class="small" x="995" y="438" text-anchor="middle">发送</text>
+  <line class="line" x1="230" y1="310" x2="230" y2="430"/>
+  <line class="line" x1="230" y1="430" x2="930" y2="430"/>
+  <line class="line" x1="1060" y1="430" x2="1180" y2="430"/>
+  <line class="line" x1="1180" y1="430" x2="1180" y2="310"/>
+  <text class="small" x="275" y="405">1</text>
+  <text class="small" x="1140" y="405">N</text>
+
+  <polygon class="relation" points="1370,430 1435,375 1500,430 1435,485"/>
+  <text class="small" x="1435" y="438" text-anchor="middle">上传</text>
+  <line class="line" x1="1180" y1="430" x2="1370" y2="430"/>
+  <line class="line" x1="1500" y1="430" x2="1660" y2="430"/>
+  <line class="line" x1="1660" y1="430" x2="1660" y2="310"/>
+  <text class="small" x="1335" y="405">N</text>
+  <text class="small" x="1615" y="405">N</text>
+
+  <polygon class="relation" points="930,610 995,555 1060,610 995,665"/>
+  <text class="small" x="995" y="618" text-anchor="middle">命中</text>
+  <line class="line" x1="1120" y1="310" x2="1120" y2="555"/>
+  <line class="line" x1="1120" y1="555" x2="1060" y2="610"/>
+  <line class="line" x1="685" y1="700" x2="685" y2="640"/>
+  <line class="line" x1="685" y1="640" x2="930" y2="610"/>
+  <text class="small" x="1080" y="530">N</text>
+  <text class="small" x="705" y="675">N</text>
+
+  <polygon class="relation" points="1180,610 1245,555 1310,610 1245,665"/>
+  <text class="small" x="1245" y="618" text-anchor="middle">归档</text>
+  <line class="line" x1="1245" y1="310" x2="1245" y2="555"/>
+  <line class="line" x1="1275" y1="700" x2="1275" y2="665"/>
+  <line class="line" x1="1245" y1="555" x2="1245" y2="555"/>
+  <text class="small" x="1215" y="530">1</text>
+  <text class="small" x="1295" y="690">N</text>
+</svg>

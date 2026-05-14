@@ -34,6 +34,18 @@ public enum CodeEnum implements Code {
      * 处理失败
      */
     FAILED(503, "处理失败！"),
+    USER_DISABLED(504, "账号已被禁用！"),
+    USER_FORCED_OFFLINE(505, "你已被管理员强制下线！"),
+    GROUP_DISABLED(506, "群聊已被管理员关闭！"),
+    USER_ALREADY_EXISTS(507, "账号已存在！"),
+    USER_LOGIN_FAILED(508, "账号或密码错误！"),
+    CHANNEL_NOT_FOUND(509, "频道不存在！"),
+    CHANNEL_ALREADY_EXISTS(510, "频道已存在！"),
+    USERNAME_ALREADY_EXISTS(511, "昵称已存在！"),
+    FRIEND_NOT_FOUND(512, "未找到该用户！"),
+    FRIEND_ALREADY_ADDED(513, "已经是好友了！"),
+    FRIEND_CANNOT_ADD_SELF(514, "不能添加自己为好友！"),
+    FRIEND_REQUIRED(515, "请先添加好友再私聊！"),
     /**
      * 响应成功
      */

@@ -1,18 +1,21 @@
 package cn.xeblog.xechat.listener;
 
 import cn.xeblog.xechat.cache.UserCache;
+import cn.xeblog.xechat.cache.OfflineMessageCache;
 import cn.xeblog.xechat.constant.MessageConstant;
 import cn.xeblog.xechat.constant.StompConstant;
 import cn.xeblog.xechat.constant.UserStatusConstant;
 import cn.xeblog.xechat.domain.mo.User;
 import cn.xeblog.xechat.domain.vo.DynamicMsgVo;
 import cn.xeblog.xechat.domain.vo.MessageVO;
+import cn.xeblog.xechat.domain.vo.ResponseVO;
 import cn.xeblog.xechat.enums.CodeEnum;
 import cn.xeblog.xechat.exception.ErrorCodeException;
 import cn.xeblog.xechat.service.MessageService;
 import cn.xeblog.xechat.utils.CheckUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
@@ -21,6 +24,8 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.messaging.SessionSubscribeEvent;
 
 import javax.annotation.Resource;
+import java.security.Principal;
+import java.util.List;
 
 /**
  * websocket事件监听
@@ -34,6 +39,9 @@ public class WebSocketEventListener {
 
     @Resource
     private MessageService messageService;
+
+    @Resource
+    private SimpMessagingTemplate messagingTemplate;
 
     private User user;
 
@@ -89,8 +97,12 @@ public class WebSocketEventListener {
         StompHeaderAccessor stompHeaderAccessor = MessageHeaderAccessor.getAccessor(sessionSubscribeEvent.getMessage(),
                 StompHeaderAccessor.class);
 
-        if (StompConstant.SUB_STATUS.equals(stompHeaderAccessor.getFirstNativeHeader(StompHeaderAccessor
-                .STOMP_DESTINATION_HEADER))) {
+        String destination = stompHeaderAccessor.getDestination();
+        if (destination == null) {
+            destination = stompHeaderAccessor.getFirstNativeHeader(StompHeaderAccessor.STOMP_DESTINATION_HEADER);
+        }
+
+        if (StompConstant.SUB_STATUS.equals(destination)) {
             if (user != null) {
                 try {
                     // 延迟100ms，防止客户端来不及接收上线消息
@@ -106,6 +118,28 @@ public class WebSocketEventListener {
                 log.debug("广播上线消息 -> {}", user);
             }
 
+        }
+
+        Principal principal = sessionSubscribeEvent.getUser();
+        if (principal == null || destination == null) {
+            return;
+        }
+        String userId = principal.getName();
+        if (userId == null || userId.trim().isEmpty()) {
+            return;
+        }
+
+        String expectedUserChatDestination = StompConstant.STOMP_USER + "/" + userId + StompConstant.SUB_USER;
+        if (!expectedUserChatDestination.equals(destination)) {
+            return;
+        }
+
+        List<MessageVO> offlineMessages = OfflineMessageCache.drain(userId);
+        if (offlineMessages.isEmpty()) {
+            return;
+        }
+        for (MessageVO messageVO : offlineMessages) {
+            messagingTemplate.convertAndSendToUser(userId, StompConstant.SUB_USER, new ResponseVO(messageVO));
         }
     }
 

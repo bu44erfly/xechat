@@ -1,12 +1,10 @@
 package cn.xeblog.xechat.config;
 
-import cn.xeblog.xechat.interceptor.PermissionInterceptor;
+import cn.xeblog.xechat.interceptor.AdminAuthInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-
-import javax.annotation.Resource;
 
 /**
  * mvc配置
@@ -17,10 +15,13 @@ import javax.annotation.Resource;
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
-    @Resource
-    private FileConfig fileConfig;
-    @Resource
-    private PermissionInterceptor permissionInterceptor;
+    private final FileConfig fileConfig;
+    private final AdminAuthInterceptor adminAuthInterceptor;
+
+    public WebMvcConfig(FileConfig fileConfig, AdminAuthInterceptor adminAuthInterceptor) {
+        this.fileConfig = fileConfig;
+        this.adminAuthInterceptor = adminAuthInterceptor;
+    }
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
@@ -31,7 +32,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(permissionInterceptor).addPathPatterns("/api/record/**", "/chatrecord/**");
+        registry.addInterceptor(adminAuthInterceptor)
+                .addPathPatterns("/api/admin/**")
+                .excludePathPatterns("/api/admin/login");
     }
 
 }
