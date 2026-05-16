@@ -105,7 +105,17 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public void sendRobotMessage(String subAddress, String message) throws Exception {
-        SpringUtils.getBean(this.getClass()).sendMessage(subAddress, new MessageVO(UserCache.getUser(RobotConstant.key),
-                message, MessageTypeEnum.ROBOT));
+        User robot = UserCache.getUser(RobotConstant.key);
+        MessageVO messageVO = new MessageVO(robot, message, MessageTypeEnum.ROBOT);
+        if (subAddress != null) {
+            String prefix = "/topic/channel/";
+            if (subAddress.startsWith(prefix)) {
+                String channelId = subAddress.substring(prefix.length()).trim();
+                if (!channelId.isEmpty()) {
+                    messageVO.setChannelId(channelId);
+                }
+            }
+        }
+        SpringUtils.getBean(this.getClass()).sendMessage(subAddress, messageVO);
     }
 }

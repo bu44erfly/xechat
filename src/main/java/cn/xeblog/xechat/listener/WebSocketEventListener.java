@@ -175,6 +175,6 @@ public class WebSocketEventListener {
      * @throws Exception
      */
     private void sendRobotMessage(String message) throws Exception {
-        messageService.sendRobotMessage(StompConstant.SUB_CHAT_ROOM, message);
+        messageService.sendRobotMessage("/topic/channel/lobby", message);
     }
 }
