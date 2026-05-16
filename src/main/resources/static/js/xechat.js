@@ -890,7 +890,7 @@ function renderChannelList() {
         var unread = channelUnreadCount[channelId] || 0;
         var unreadHtml = unread > 0 ? '<span class="unread-badge">' + unread + '</span>' : '';
         ul.append('<li class="' + active + '" onclick="selectChannel(\'' + channelId + '\')">' +
-            '<div class="row"><div class="name"># ' + channelId + '</div>' + unreadHtml + '</div></li>');
+            '<div class="item-row"><div class="name"># ' + channelId + '</div>' + unreadHtml + '</div></li>');
     }
 }
 
@@ -950,7 +950,7 @@ function renderFriendList() {
         var unread = unreadCount[fid] || 0;
         var unreadHtml = unread > 0 ? '<span class="unread-badge">' + unread + '</span>' : '';
         ul.append('<li class="' + active + '" onclick="selectChatUser(\'' + fid + '\')">' +
-            '<div class="row"><div class="name">' + user.username + '</div>' + unreadHtml + '</div></li>');
+            '<div class="item-row"><div class="name">' + user.username + '</div>' + unreadHtml + '</div></li>');
     }
 }
 

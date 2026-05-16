@@ -297,7 +297,7 @@ li {
 }
 
 .chat-sidebar {
-    width: 230px;
+    width: 300px;
     background-color: #fff;
     border: 1px solid #e6e6e6;
     border-radius: 4px;
@@ -326,7 +326,7 @@ li {
     background-color: #f0f7ff;
 }
 
-.channel-list li .row {
+.channel-list li .item-row {
     display: flex;
     align-items: center;
 }
@@ -334,6 +334,9 @@ li {
 .channel-list li .name {
     flex: 1;
     color: #666;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .channel-list li .unread-badge {
@@ -362,7 +365,7 @@ li {
     background-color: #f0f7ff;
 }
 
-.friend-list li .row {
+.friend-list li .item-row {
     display: flex;
     align-items: center;
 }
@@ -370,6 +373,8 @@ li {
 .friend-list li .name {
     flex: 1;
     color: #666;
+    white-space: normal;
+    word-break: break-all;
 }
 
 .friend-list li .unread-badge {
